@@ -79,3 +79,10 @@ func ParseFile(name string) (*Manifest, error) {
 	}
 	return Parse(content)
 }
+func (mf *Manifest) ProjectRevision(p *Project) string {
+	if p.Revision != "" {
+		return p.Revision
+	}
+
+	return mf.Default.Revision
+}

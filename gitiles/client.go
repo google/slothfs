@@ -59,7 +59,7 @@ func (s *Service) get(u url.URL) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("%s: %s", u, resp.Status)
+		return nil, fmt.Errorf("%s: %s", u.String(), resp.Status)
 	}
 
 	c, err := ioutil.ReadAll(resp.Body)
@@ -108,6 +108,13 @@ func (s *Service) GetProject(name string) (*Project, error) {
 	var p Project
 	err := s.getJSON(jsonURL, &p)
 	return &p, err
+}
+
+func (s *Service) NewRepoService(name string) *RepoService {
+	return &RepoService{
+		Name:    name,
+		service: s,
+	}
 }
 
 // RepoService is a JSON client for the functionality of a specific
