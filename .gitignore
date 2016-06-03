@@ -1,1 +1,9 @@
+# Tmp Files
 *~
+
+# IntelliJ Project Files
+.idea/
+*.iml
+
+# Eclipse Project Files
+.project
