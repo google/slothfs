@@ -25,7 +25,7 @@ func TestGitCache(t *testing.T) {
 
 	url := "file://" + testRepo.dir
 
-	lazy := newLazyRepo(url, cache, true)
+	lazy := newLazyRepo(url, cache)
 	if r := lazy.Repository(); r != nil {
 		t.Errorf("got %v for lazy.Repository", r)
 	}

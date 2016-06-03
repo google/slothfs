@@ -23,9 +23,9 @@ import (
 
 // Cache combines a blob, tree and git repo cache.
 type Cache struct {
-	git  *gitCache
-	tree *TreeCache
-	blob *CAS
+	Git  *gitCache
+	Tree *TreeCache
+	Blob *CAS
 }
 
 func NewCache(d string) (*Cache, error) {
@@ -52,5 +52,5 @@ func NewCache(d string) (*Cache, error) {
 		return nil, err
 	}
 
-	return &Cache{git: g, tree: t, blob: c}, nil
+	return &Cache{Git: g, Tree: t, Blob: c}, nil
 }

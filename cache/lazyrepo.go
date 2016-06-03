@@ -21,31 +21,35 @@ import (
 	git "github.com/libgit2/git2go"
 )
 
-// lazyRepo represents a git repository that might be fetched on
+// LazyRepo represents a git repository that might be fetched on
 // demand.
-type lazyRepo struct {
-	allowClone bool
-	url        string
-	cache      *gitCache
+type LazyRepo struct {
+	url   string
+	cache *gitCache
 
 	repoMu  sync.Mutex
 	cloning bool
 	repo    *git.Repository
 }
 
-func newLazyRepo(url string, cache *gitCache, allowClone bool) *lazyRepo {
-	r := &lazyRepo{
-		url:        url,
-		cache:      cache,
-		allowClone: allowClone,
+func newLazyRepo(url string, cache *gitCache) *LazyRepo {
+	r := &LazyRepo{
+		url:   url,
+		cache: cache,
 	}
 	return r
+}
+
+// NewLazyRepo creates a new repository. If the repository is never to
+// be cloned, url should be set to empty string.
+func NewLazyRepo(url string, cache *Cache) *LazyRepo {
+	return newLazyRepo(url, cache.Git)
 }
 
 // Repository returns a git.Repository for this repo, or nil if it
 // wasn't loaded.  This method is safe for concurrent use from
 // multiple goroutines.
-func (r *lazyRepo) Repository() *git.Repository {
+func (r *LazyRepo) Repository() *git.Repository {
 	r.repoMu.Lock()
 	defer r.repoMu.Unlock()
 	return r.repo
@@ -53,12 +57,12 @@ func (r *lazyRepo) Repository() *git.Repository {
 
 // runClone initiates a clone. It makes sure that only one clone
 // process runs at any time.
-func (r *lazyRepo) runClone() {
+func (r *LazyRepo) runClone() {
 	repo, err := r.cache.Open(r.url)
 
 	r.repoMu.Lock()
 	defer r.repoMu.Unlock()
-	r.allowClone = false
+	r.url = ""
 	r.cloning = false
 	r.repo = repo
 
@@ -69,10 +73,10 @@ func (r *lazyRepo) runClone() {
 
 // Clone schedules the repository to be cloned.  This method is safe
 // for concurrent use from multiple goroutines.
-func (r *lazyRepo) Clone() {
+func (r *LazyRepo) Clone() {
 	r.repoMu.Lock()
 	defer r.repoMu.Unlock()
-	if !r.allowClone || r.repo != nil {
+	if r.url == "" || r.repo != nil {
 		return
 	}
 

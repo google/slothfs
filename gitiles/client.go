@@ -99,17 +99,6 @@ func (s *Service) List() (map[string]*Project, error) {
 	return projects, err
 }
 
-// GetProject retrieves a single project.
-func (s *Service) GetProject(name string) (*Project, error) {
-	jsonURL := s.addr
-	jsonURL.Path = path.Join(s.addr.Path, name)
-	jsonURL.RawQuery = "format=JSON"
-
-	var p Project
-	err := s.getJSON(jsonURL, &p)
-	return &p, err
-}
-
 func (s *Service) NewRepoService(name string) *RepoService {
 	return &RepoService{
 		Name:    name,
@@ -122,6 +111,17 @@ func (s *Service) NewRepoService(name string) *RepoService {
 type RepoService struct {
 	Name    string
 	service *Service
+}
+
+// Get retrieves a single project.
+func (s *RepoService) Get() (*Project, error) {
+	jsonURL := s.service.addr
+	jsonURL.Path = path.Join(jsonURL.Path, s.Name)
+	jsonURL.RawQuery = "format=JSON"
+
+	var p Project
+	err := s.service.getJSON(jsonURL, &p)
+	return &p, err
 }
 
 // GetBlob fetches a blob.
