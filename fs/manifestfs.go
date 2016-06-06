@@ -187,3 +187,5 @@ func fetchTreeMap(treeCache *cache.TreeCache, service *gitiles.Service, mf *mani
 	}
 	return resmap, nil
 }
+
+// TODO(hanwen): support LinkFile and CopyFile directives.
