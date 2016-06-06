@@ -43,3 +43,9 @@ type ManifestOptions struct {
 	RepoCloneOption []CloneOption
 	FileCloneOption []CloneOption
 }
+
+// MultiFSOptions holds options for a file system with multiple manifests.
+type MultiFSOptions struct {
+	RepoCloneOption []CloneOption
+	FileCloneOption []CloneOption
+}

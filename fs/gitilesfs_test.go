@@ -60,7 +60,7 @@ const testManifest = `<?xml version="1.0" encoding="UTF-8"?>
   <default revision="master"
            remote="aosp"
            sync-j="4" />
-  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" />
+  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" revision="ce34badf691d36e8048b63f89d1a86ee5fa4325c" />
 </manifest>`
 
 var testGitiles = map[string]string{
@@ -258,10 +258,6 @@ func TestManifestFS(t *testing.T) {
 	if err != nil {
 		t.Fatal("manifest.Parse:", err)
 	}
-	for i := range mf.Project {
-		// ManifestFS wants expanded revisions.
-		mf.Project[i].Revision = "ce34badf691d36e8048b63f89d1a86ee5fa4325c"
-	}
 
 	cache, err := cache.NewCache(filepath.Join(d, "/cache"))
 	if err != nil {
@@ -322,5 +318,81 @@ func TestManifestFS(t *testing.T) {
 	want := testGitiles["/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT"]
 	if string(contents) != want {
 		t.Fatalf("got %q, want %q", contents, want)
+	}
+}
+
+// TODO(hanwen): factor common setup into a testFixture struct.
+
+func TestMultiFS(t *testing.T) {
+	d, err := ioutil.TempDir("", "multifstest")
+	if err != nil {
+		t.Fatal("TempDir", err)
+	}
+	defer os.RemoveAll(d)
+
+	xmlFile := filepath.Join(d, "manifest.xml")
+	if err := ioutil.WriteFile(xmlFile, []byte(testManifest), 0644); err != nil {
+		t.Errorf("WriteFile(%s): %v", xmlFile, err)
+	}
+
+	brokenXMLFile := filepath.Join(d, "broken.xml")
+	if err := ioutil.WriteFile(brokenXMLFile, []byte("I'm not XML."), 0644); err != nil {
+		t.Errorf("WriteFile(%s): %v", brokenXMLFile, err)
+	}
+
+	cache, err := cache.NewCache(filepath.Join(d, "/cache"))
+	if err != nil {
+		t.Fatalf("NewCache: %v", err)
+	}
+
+	l, err := newTestServer()
+	if err != nil {
+		t.Fatalf("newTestServer: %v", err)
+	}
+	defer l.Close()
+
+	service, err := gitiles.NewService(
+		fmt.Sprintf("http://%s", l.Addr().String()))
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	opts := MultiFSOptions{}
+	fs := NewMultiFS(cache, service, opts)
+
+	mntDir := d + "/mnt"
+	if err := os.Mkdir(mntDir, 0755); err != nil {
+		t.Fatal("Mkdir", err)
+	}
+
+	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
+	if err != nil {
+		log.Fatalf("MountFileSystem: %v", err)
+	}
+	go server.Serve()
+	defer server.Unmount()
+
+	if err := os.Symlink(brokenXMLFile, filepath.Join(mntDir, "config", "ws")); err == nil {
+		t.Fatalf("want error for broken XML file")
+	}
+
+	wsDir := filepath.Join(mntDir, "ws")
+	if fi, err := os.Lstat(wsDir); err == nil {
+		t.Fatalf("got %v, want non-existent workspace dir", fi)
+	}
+
+	if err := os.Symlink(xmlFile, filepath.Join(mntDir, "config", "ws")); err != nil {
+		t.Fatalf("Symlink(%s):  %v", xmlFile, err)
+	}
+
+	if _, err := os.Lstat(wsDir); err != nil {
+		t.Fatalf("Lstat(%s): %v", wsDir, err)
+	}
+
+	fn := filepath.Join(mntDir, "ws", "build", "kati", "AUTHORS")
+	if fi, err := os.Lstat(fn); err != nil {
+		t.Fatalf("Lstat(%s): %v", fn, err)
+	} else if fi.Size() != 373 {
+		t.Errorf("got %d, want size 373", fi.Size())
 	}
 }
