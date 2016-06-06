@@ -26,12 +26,14 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/gitfs/cache"
 	"github.com/google/gitfs/gitiles"
+	"github.com/google/gitfs/manifest"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
+
+const fuseDebug = false
 
 func init() {
 	enc := map[string]string{
@@ -50,8 +52,7 @@ func init() {
 	}
 }
 
-var testGitiles = map[string]string{
-	"/platform/manifest/+show/master/default.xml?format=TEXT": `<?xml version="1.0" encoding="UTF-8"?>
+const testManifest = `<?xml version="1.0" encoding="UTF-8"?>
 <manifest>
   <remote  name="aosp"
            fetch=".."
@@ -60,7 +61,10 @@ var testGitiles = map[string]string{
            remote="aosp"
            sync-j="4" />
   <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" />
-</manifest>`,
+</manifest>`
+
+var testGitiles = map[string]string{
+	"/platform/manifest/+show/master/default.xml?format=TEXT": testManifest,
 	"/platform/build/kati/+/master?format=JSON": `)]}'
 {
   "commit": "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
@@ -202,17 +206,15 @@ func TestGitilesFS(t *testing.T) {
 	if err := os.Mkdir(mntDir, 0755); err != nil {
 		t.Fatal("Mkdir", err)
 	}
-	server, _, err := nodefs.MountRoot(mntDir, fs, &nodefs.Options{
-		EntryTimeout:    time.Hour,
-		NegativeTimeout: time.Hour,
-		AttrTimeout:     time.Hour,
-		PortableInodes:  true,
-	})
+	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
 	if err != nil {
 		log.Fatalf("MountFileSystem: %v", err)
 	}
-	server.SetDebug(true)
-	log.Printf("Started FUSE on %s", mntDir)
+	if fuseDebug {
+		server.SetDebug(true)
+		log.Printf("Started FUSE on %s", mntDir)
+	}
+
 	go server.Serve()
 	defer server.Unmount()
 
@@ -242,5 +244,83 @@ func TestGitilesFS(t *testing.T) {
 
 	if giNode.clone {
 		t.Errorf(".mk file had clone set.")
+	}
+}
+
+func TestManifestFS(t *testing.T) {
+	d, err := ioutil.TempDir("", "manifesttest")
+	if err != nil {
+		t.Fatal("TempDir", err)
+	}
+	defer os.RemoveAll(d)
+
+	mf, err := manifest.Parse([]byte(testManifest))
+	if err != nil {
+		t.Fatal("manifest.Parse:", err)
+	}
+	for i := range mf.Project {
+		// ManifestFS wants expanded revisions.
+		mf.Project[i].Revision = "ce34badf691d36e8048b63f89d1a86ee5fa4325c"
+	}
+
+	cache, err := cache.NewCache(filepath.Join(d, "/cache"))
+	if err != nil {
+		t.Fatalf("NewCache: %v", err)
+	}
+
+	l, err := newTestServer()
+	if err != nil {
+		t.Fatalf("newTestServer: %v", err)
+	}
+	defer l.Close()
+
+	service, err := gitiles.NewService(
+		fmt.Sprintf("http://%s", l.Addr().String()))
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+
+	opts := ManifestOptions{
+		Manifest: mf,
+	}
+
+	fs, err := NewManifestFS(service, cache, opts)
+	if err != nil {
+		t.Fatalf("NewManifestFS: %v", err)
+	}
+
+	mntDir := d + "/mnt"
+	if err := os.Mkdir(mntDir, 0755); err != nil {
+		t.Fatal("Mkdir", err)
+	}
+	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
+	if err != nil {
+		log.Fatalf("MountFileSystem: %v", err)
+	}
+
+	if fuseDebug {
+		server.SetDebug(true)
+	}
+
+	go server.Serve()
+	defer server.Unmount()
+
+	fn := filepath.Join(mntDir, "build", "kati", "AUTHORS")
+	fi, err := os.Lstat(fn)
+	if err != nil {
+		t.Fatalf("Lstat(%s): %v", fn, err)
+	}
+	if fi.Size() != 373 {
+		t.Errorf("got size %d want %d", fi.Size(), 373)
+	}
+
+	contents, err := ioutil.ReadFile(fn)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", fn, err)
+	}
+
+	want := testGitiles["/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT"]
+	if string(contents) != want {
+		t.Fatalf("got %q, want %q", contents, want)
 	}
 }

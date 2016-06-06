@@ -208,6 +208,9 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	if err := r.onMount(fsConn); err != nil {
 		log.Printf("onMount: %v", err)
+		for k := range r.Inode().Children() {
+			r.Inode().RmChild(k)
+		}
 		r.Inode().NewChild("ERROR", false, newDataNode(err.Error()))
 	}
 }

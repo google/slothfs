@@ -14,7 +14,11 @@
 
 package fs
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/google/gitfs/manifest"
+)
 
 // CloneOption configures for which files we should trigger a git clone.
 type CloneOption struct {
@@ -31,4 +35,11 @@ type GitilesOptions struct {
 
 	// List of filename options. We use the first matching option
 	CloneOption []CloneOption
+}
+
+// ManifestOptions holds options for a Manifest file system.
+type ManifestOptions struct {
+	Manifest        *manifest.Manifest
+	RepoCloneOption []CloneOption
+	FileCloneOption []CloneOption
 }
