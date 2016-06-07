@@ -21,6 +21,32 @@ then, in another terminal, execute
 To create a workspace "ws" corresponding to the manifest in m.xml.
 
 
+Configuring
+===========
+
+The FUSE file system clones repositories on-demand. You can avoid cloning
+altogether for repositories you know you don't need.  This is configured through
+a JSON file.
+
+For example, if you work on Android, and build on a Linux machine, you will
+never need the Darwin related prebuilts. You can avoid a costly clone for those
+by doing:
+
+    {"Repo": ".*darwin.*", "Clone": false}
+
+Similarly, the build system system will read files (typically called '*.mk')
+across the entire tree. When any .mk file is opened, this should not trigger a
+clone. This is achieved with the following entry
+
+    {"File": ".*mk$", "Clone": false}
+
+Together, the following `config.json` file is a good start for working on
+android:
+
+    [{"Repo": ".*darwin.*", "Clone": false},
+     {"File": ".*mk$", "Clone": true}]
+
+
 DISCLAIMER
 ==========
 

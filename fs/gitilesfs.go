@@ -240,10 +240,12 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 		// Determine if file should trigger a clone.
 		clone := r.opts.CloneURL != ""
-		for _, e := range r.opts.CloneOption {
-			if e.RE.FindString(p) != "" {
-				clone = e.Clone
-				break
+		if clone {
+			for _, e := range r.opts.CloneOption {
+				if e.RE.FindString(p) != "" {
+					clone = e.Clone
+					break
+				}
 			}
 		}
 
