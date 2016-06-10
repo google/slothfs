@@ -129,6 +129,48 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		}
 	}
 
+	// Do Linkfile, Copyfile after setting up the repos, so we
+	// have directories to attach the copy/link nodes to.
+	for _, p := range fs.options.Manifest.Project {
+		for _, cp := range p.Copyfile {
+			srcNode, left := fsConn.Node(fs.Inode(), filepath.Join(p.Path, cp.Src))
+			if len(left) > 0 {
+				return fmt.Errorf("Copyfile(%s): source %s does not exist", p.Name, cp.Src)
+			}
+
+			dir, left := fsConn.Node(fs.Inode(), cp.Dest)
+			switch len(left) {
+			case 0:
+				return fmt.Errorf("Copyfile(%s): dest %s already exists.", p.Name, cp.Dest)
+			case 1:
+			default:
+				return fmt.Errorf("Copyfile(%s): directory for dest %s does not exist.", p.Name, cp.Dest)
+			}
+
+			dir.AddChild(left[0], srcNode)
+		}
+
+		for _, lf := range p.Linkfile {
+			dir, left := fsConn.Node(fs.Inode(), lf.Dest)
+			switch len(left) {
+			case 0:
+				return fmt.Errorf("Linkfile(%s): dest %s already exists.", p.Name, lf.Dest)
+			case 1:
+			default:
+				return fmt.Errorf("Linkfile(%s): directory for dest %s does not exist.", p.Name, lf.Dest)
+			}
+
+			src := filepath.Join(p.Path, lf.Src)
+			rel, err := filepath.Rel(filepath.Dir(lf.Dest), src)
+			if err != nil {
+				return err
+			}
+
+			node := newLinkNode(filepath.Join(rel))
+			dir.NewChild(left[0], false, node)
+		}
+	}
+
 	return nil
 }
 
@@ -187,5 +229,3 @@ func fetchTreeMap(treeCache *cache.TreeCache, service *gitiles.Service, mf *mani
 	}
 	return resmap, nil
 }
-
-// TODO(hanwen): support LinkFile and CopyFile directives.

@@ -51,6 +51,28 @@ type gitilesRoot struct {
 	lazyRepo *cache.LazyRepo
 }
 
+type linkNode struct {
+	nodefs.Node
+	linkTarget []byte
+}
+
+func newLinkNode(target string) *linkNode {
+	return &linkNode{
+		Node:       nodefs.NewDefaultNode(),
+		linkTarget: []byte(target),
+	}
+}
+
+func (n *linkNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
+	out.Size = uint64(len(n.linkTarget))
+	out.Mode = fuse.S_IFLNK
+	return fuse.OK
+}
+
+func (n *linkNode) Readlink(c *fuse.Context) ([]byte, fuse.Status) {
+	return n.linkTarget, fuse.OK
+}
+
 // gitilesNode represents a read-only blob in the FUSE filesystem.
 type gitilesNode struct {
 	nodefs.Node

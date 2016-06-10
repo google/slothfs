@@ -23,8 +23,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/google/gitfs/cache"
@@ -60,7 +62,10 @@ const testManifest = `<?xml version="1.0" encoding="UTF-8"?>
   <default revision="master"
            remote="aosp"
            sync-j="4" />
-  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" revision="ce34badf691d36e8048b63f89d1a86ee5fa4325c" />
+  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" revision="ce34badf691d36e8048b63f89d1a86ee5fa4325c">
+    <copyfile dest="build/copydest" src="AUTHORS" />
+    <linkfile dest="build/linkdest" src="AUTHORS" />
+  </project>
 </manifest>`
 
 var testGitiles = map[string]string{
@@ -319,6 +324,25 @@ func TestManifestFS(t *testing.T) {
 	if string(contents) != want {
 		t.Fatalf("got %q, want %q", contents, want)
 	}
+
+	copyPath := filepath.Join(mntDir, "build", "copydest")
+	if copyFI, err := os.Lstat(copyPath); err != nil {
+		t.Errorf("Lstat(%s): %v", copyPath, err)
+	} else {
+		copyStat := copyFI.Sys().(*syscall.Stat_t)
+		origStat := fi.Sys().(*syscall.Stat_t)
+
+		if !reflect.DeepEqual(copyStat, origStat) {
+			t.Errorf("got stat %v, want %v", copyStat, origStat)
+		}
+	}
+
+	linkPath := filepath.Join(mntDir, "build", "linkdest")
+	if got, err := os.Readlink(linkPath); err != nil {
+		t.Errorf("Readlink(%s): %v", linkPath, err)
+	} else if want := "kati/AUTHORS"; got != want {
+		t.Errorf("Readlink(%s) = %q, want %q", linkPath, got, want)
+	}
 }
 
 // TODO(hanwen): factor common setup into a testFixture struct.
@@ -358,7 +382,7 @@ func TestMultiFS(t *testing.T) {
 	}
 
 	opts := MultiFSOptions{}
-	fs := NewMultiFS(cache, service, opts)
+	fs := NewMultiFS(service, cache, opts)
 
 	mntDir := d + "/mnt"
 	if err := os.Mkdir(mntDir, 0755); err != nil {
