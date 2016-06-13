@@ -32,6 +32,7 @@ import (
 	"github.com/google/gitfs/cache"
 	"github.com/google/gitfs/gitiles"
 	"github.com/google/gitfs/manifest"
+	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
@@ -163,22 +164,11 @@ func newTestServer() (net.Listener, error) {
 }
 
 func TestGitilesFS(t *testing.T) {
-	d, err := ioutil.TempDir("", "gitilesfs")
+	fix, err := newTestFixture()
 	if err != nil {
-		t.Fatal("TempDir", err)
+		t.Fatal("newTestFixture", err)
 	}
-	defer os.RemoveAll(d)
-
-	cache, err := cache.NewCache(d + "/cache")
-	if err != nil {
-		t.Fatal("NewCache", err)
-	}
-
-	l, err := newTestServer()
-	if err != nil {
-		t.Fatal("newTestServer", err)
-	}
-	defer l.Close()
+	defer fix.cleanup()
 
 	fileOpts := []CloneOption{
 		{
@@ -189,13 +179,7 @@ func TestGitilesFS(t *testing.T) {
 			Clone: true,
 		}}
 
-	service, err := gitiles.NewService(
-		fmt.Sprintf("http://%s", l.Addr().String()))
-	if err != nil {
-		t.Fatal("NewService:", err)
-	}
-
-	repoService := service.NewRepoService("platform/build/kati")
+	repoService := fix.service.NewRepoService("platform/build/kati")
 	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
 	if err != nil {
 		t.Fatal("Tree:", err)
@@ -205,25 +189,12 @@ func TestGitilesFS(t *testing.T) {
 		CloneOption: fileOpts,
 	}
 
-	fs := NewGitilesRoot(cache, treeResp, repoService, options)
-
-	mntDir := d + "/mnt"
-	if err := os.Mkdir(mntDir, 0755); err != nil {
-		t.Fatal("Mkdir", err)
-	}
-	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
-	if err != nil {
-		log.Fatalf("MountFileSystem: %v", err)
-	}
-	if fuseDebug {
-		server.SetDebug(true)
-		log.Printf("Started FUSE on %s", mntDir)
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
 	}
 
-	go server.Serve()
-	defer server.Unmount()
-
-	fn := filepath.Join(mntDir, "testcase", "addprefix.mk")
+	fn := filepath.Join(fix.mntDir, "testcase", "addprefix.mk")
 	if fi, err := os.Lstat(fn); err != nil {
 		t.Fatalf("Lstat(%q): %v", fn, err)
 	} else {
@@ -253,60 +224,30 @@ func TestGitilesFS(t *testing.T) {
 }
 
 func TestManifestFS(t *testing.T) {
-	d, err := ioutil.TempDir("", "manifesttest")
+	fix, err := newTestFixture()
 	if err != nil {
-		t.Fatal("TempDir", err)
+		t.Fatal("newTestFixture", err)
 	}
-	defer os.RemoveAll(d)
+	defer fix.cleanup()
 
 	mf, err := manifest.Parse([]byte(testManifest))
 	if err != nil {
 		t.Fatal("manifest.Parse:", err)
 	}
 
-	cache, err := cache.NewCache(filepath.Join(d, "/cache"))
-	if err != nil {
-		t.Fatalf("NewCache: %v", err)
-	}
-
-	l, err := newTestServer()
-	if err != nil {
-		t.Fatalf("newTestServer: %v", err)
-	}
-	defer l.Close()
-
-	service, err := gitiles.NewService(
-		fmt.Sprintf("http://%s", l.Addr().String()))
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-
 	opts := ManifestOptions{
 		Manifest: mf,
 	}
 
-	fs, err := NewManifestFS(service, cache, opts)
+	fs, err := NewManifestFS(fix.service, fix.cache, opts)
 	if err != nil {
 		t.Fatalf("NewManifestFS: %v", err)
 	}
-
-	mntDir := d + "/mnt"
-	if err := os.Mkdir(mntDir, 0755); err != nil {
-		t.Fatal("Mkdir", err)
-	}
-	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
-	if err != nil {
+	if err := fix.mount(fs); err != nil {
 		log.Fatalf("MountFileSystem: %v", err)
 	}
 
-	if fuseDebug {
-		server.SetDebug(true)
-	}
-
-	go server.Serve()
-	defer server.Unmount()
-
-	fn := filepath.Join(mntDir, "build", "kati", "AUTHORS")
+	fn := filepath.Join(fix.mntDir, "build", "kati", "AUTHORS")
 	fi, err := os.Lstat(fn)
 	if err != nil {
 		t.Fatalf("Lstat(%s): %v", fn, err)
@@ -325,7 +266,7 @@ func TestManifestFS(t *testing.T) {
 		t.Fatalf("got %q, want %q", contents, want)
 	}
 
-	copyPath := filepath.Join(mntDir, "build", "copydest")
+	copyPath := filepath.Join(fix.mntDir, "build", "copydest")
 	if copyFI, err := os.Lstat(copyPath); err != nil {
 		t.Errorf("Lstat(%s): %v", copyPath, err)
 	} else {
@@ -337,7 +278,7 @@ func TestManifestFS(t *testing.T) {
 		}
 	}
 
-	linkPath := filepath.Join(mntDir, "build", "linkdest")
+	linkPath := filepath.Join(fix.mntDir, "build", "linkdest")
 	if got, err := os.Readlink(linkPath); err != nil {
 		t.Errorf("Readlink(%s): %v", linkPath, err)
 	} else if want := "kati/AUTHORS"; got != want {
@@ -345,67 +286,105 @@ func TestManifestFS(t *testing.T) {
 	}
 }
 
-// TODO(hanwen): factor common setup into a testFixture struct.
+type testFixture struct {
+	dir      string
+	mntDir   string
+	server   *fuse.Server
+	cache    *cache.Cache
+	listener net.Listener
+	service  *gitiles.Service
+}
 
-func TestMultiFS(t *testing.T) {
+func (f *testFixture) cleanup() {
+	if f.listener != nil {
+		f.listener.Close()
+	}
+	if f.server != nil {
+		f.server.Unmount()
+	}
+	os.RemoveAll(f.dir)
+}
+
+func newTestFixture() (*testFixture, error) {
 	d, err := ioutil.TempDir("", "multifstest")
 	if err != nil {
-		t.Fatal("TempDir", err)
+		return nil, err
 	}
-	defer os.RemoveAll(d)
 
-	xmlFile := filepath.Join(d, "manifest.xml")
+	fixture := &testFixture{dir: d}
+
+	fixture.cache, err = cache.NewCache(filepath.Join(d, "/cache"))
+	if err != nil {
+		return nil, err
+	}
+
+	fixture.listener, err = newTestServer()
+	if err != nil {
+		return nil, err
+	}
+
+	fixture.service, err = gitiles.NewService(
+		fmt.Sprintf("http://%s", fixture.listener.Addr().String()))
+	if err != nil {
+		return nil, err
+	}
+
+	return fixture, nil
+}
+
+func (f *testFixture) mount(root nodefs.Node) error {
+	f.mntDir = filepath.Join(f.dir, "mnt")
+	if err := os.Mkdir(f.mntDir, 0755); err != nil {
+		return err
+	}
+
+	var err error
+	f.server, _, err = nodefs.MountRoot(f.mntDir, root, nil)
+	if err != nil {
+		return err
+	}
+
+	if fuseDebug {
+		f.server.SetDebug(true)
+	}
+	go f.server.Serve()
+	return nil
+}
+
+func TestMultiFS(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatalf("newTestFixture: %v", err)
+	}
+	defer fix.cleanup()
+
+	xmlFile := filepath.Join(fix.dir, "manifest.xml")
 	if err := ioutil.WriteFile(xmlFile, []byte(testManifest), 0644); err != nil {
 		t.Errorf("WriteFile(%s): %v", xmlFile, err)
 	}
 
-	brokenXMLFile := filepath.Join(d, "broken.xml")
+	brokenXMLFile := filepath.Join(fix.dir, "broken.xml")
 	if err := ioutil.WriteFile(brokenXMLFile, []byte("I'm not XML."), 0644); err != nil {
 		t.Errorf("WriteFile(%s): %v", brokenXMLFile, err)
 	}
 
-	cache, err := cache.NewCache(filepath.Join(d, "/cache"))
-	if err != nil {
-		t.Fatalf("NewCache: %v", err)
-	}
-
-	l, err := newTestServer()
-	if err != nil {
-		t.Fatalf("newTestServer: %v", err)
-	}
-	defer l.Close()
-
-	service, err := gitiles.NewService(
-		fmt.Sprintf("http://%s", l.Addr().String()))
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
-
 	opts := MultiFSOptions{}
-	fs := NewMultiFS(service, cache, opts)
+	fs := NewMultiFS(fix.service, fix.cache, opts)
 
-	mntDir := d + "/mnt"
-	if err := os.Mkdir(mntDir, 0755); err != nil {
-		t.Fatal("Mkdir", err)
+	if err := fix.mount(fs); err != nil {
+		t.Fatalf("mount: %v", err)
 	}
 
-	server, _, err := nodefs.MountRoot(mntDir, fs, nil)
-	if err != nil {
-		log.Fatalf("MountFileSystem: %v", err)
-	}
-	go server.Serve()
-	defer server.Unmount()
-
-	if err := os.Symlink(brokenXMLFile, filepath.Join(mntDir, "config", "ws")); err == nil {
+	if err := os.Symlink(brokenXMLFile, filepath.Join(fix.mntDir, "config", "ws")); err == nil {
 		t.Fatalf("want error for broken XML file")
 	}
 
-	wsDir := filepath.Join(mntDir, "ws")
+	wsDir := filepath.Join(fix.mntDir, "ws")
 	if fi, err := os.Lstat(wsDir); err == nil {
 		t.Fatalf("got %v, want non-existent workspace dir", fi)
 	}
 
-	if err := os.Symlink(xmlFile, filepath.Join(mntDir, "config", "ws")); err != nil {
+	if err := os.Symlink(xmlFile, filepath.Join(fix.mntDir, "config", "ws")); err != nil {
 		t.Fatalf("Symlink(%s):  %v", xmlFile, err)
 	}
 
@@ -413,7 +392,7 @@ func TestMultiFS(t *testing.T) {
 		t.Fatalf("Lstat(%s): %v", wsDir, err)
 	}
 
-	fn := filepath.Join(mntDir, "ws", "build", "kati", "AUTHORS")
+	fn := filepath.Join(wsDir, "build", "kati", "AUTHORS")
 	if fi, err := os.Lstat(fn); err != nil {
 		t.Fatalf("Lstat(%s): %v", fn, err)
 	} else if fi.Size() != 373 {
