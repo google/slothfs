@@ -255,7 +255,10 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 			mode:  uint32(e.Mode),
 			clone: clone,
 			root:  r,
-			mtime: time.Unix(0, 0),
+			// Ninja uses mtime == 0 as "doesn't exist"
+			// flag, (see ninja/files/src/graph.h:66), so
+			// use a nonzero timestamp here.
+			mtime: time.Unix(1, 0),
 		}
 		if e.Size != nil {
 			n.size = int64(*e.Size)
