@@ -440,4 +440,12 @@ func TestMultiFS(t *testing.T) {
 	} else if fi.Size() != 373 {
 		t.Errorf("got %d, want size 373", fi.Size())
 	}
+
+	if err := os.Remove(configName); err != nil {
+		t.Fatalf("Delete(%s): %v", configName, err)
+	}
+
+	if fi, err := os.Lstat(wsDir); err == nil {
+		t.Errorf("Lstat(%s): got %v, want error", wsDir, fi)
+	}
 }

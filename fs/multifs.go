@@ -71,6 +71,24 @@ func (c *configEntryNode) Readlink(ctx *fuse.Context) ([]byte, fuse.Status) {
 	return c.link, fuse.OK
 }
 
+func (c *configNode) Unlink(name string, ctx *fuse.Context) fuse.Status {
+	child := c.root.Inode().RmChild(name)
+	if child == nil {
+		return fuse.ENOENT
+	}
+
+	// Notify the kernel this part of the tree disappeared.
+	c.root.fsConn.DeleteNotify(c.root.Inode(), child, name)
+
+	c.Inode().RmChild(name)
+
+	// No need to notify for the removed symlink. Since we're in
+	// the Unlink method, will VFS already knows about the
+	// deletion once we return OK.
+
+	return fuse.OK
+}
+
 func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.Inode, fuse.Status) {
 	mfBytes, err := ioutil.ReadFile(content)
 	if err != nil {
