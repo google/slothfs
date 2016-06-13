@@ -44,7 +44,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	filterManifest(mf)
+	mf.Filter()
 
 	if err := derefManifest(service, *repo, mf); err != nil {
 		log.Fatal(err)
@@ -76,18 +76,6 @@ func fetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Man
 	}
 
 	return mf, nil
-}
-
-func filterManifest(mf *manifest.Manifest) {
-	filtered := *mf
-	filtered.Project = nil
-	for _, p := range mf.Project {
-		if p.Groups["notdefault"] {
-			continue
-		}
-		filtered.Project = append(filtered.Project, p)
-	}
-	*mf = filtered
 }
 
 func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.Manifest) error {
