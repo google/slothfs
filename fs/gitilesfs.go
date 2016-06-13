@@ -204,12 +204,18 @@ type dataNode struct {
 	data []byte
 }
 
+func (n *dataNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
+	out.Size = uint64(len(n.data))
+	out.Mode = fuse.S_IFREG | 0644
+	return fuse.OK
+}
+
 func (d *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.Status) {
 	return nodefs.NewDataFile(d.data), fuse.OK
 }
 
-func newDataNode(c string) nodefs.Node {
-	return &dataNode{nodefs.NewDefaultNode(), []byte(c)}
+func newDataNode(c []byte) nodefs.Node {
+	return &dataNode{nodefs.NewDefaultNode(), c}
 }
 
 // NewGitilesRoot returns the root node for a file system.
@@ -233,7 +239,7 @@ func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 		for k := range r.Inode().Children() {
 			r.Inode().RmChild(k)
 		}
-		r.Inode().NewChild("ERROR", false, newDataNode(err.Error()))
+		r.Inode().NewChild("ERROR", false, newDataNode([]byte(err.Error())))
 	}
 }
 

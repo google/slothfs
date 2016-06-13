@@ -36,15 +36,23 @@ type manifestFSRoot struct {
 	trees map[string]*gitiles.Tree
 
 	options ManifestOptions
+
+	// XML data for the manifest.
+	manifestXML []byte
 }
 
 // NewManifestFS creates a Manifest FS root node.
 func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOptions) (nodefs.Node, error) {
+	xml, err := opts.Manifest.MarshalXML()
+	if err != nil {
+		return nil, err
+	}
 	root := &manifestFSRoot{
-		Node:    nodefs.NewDefaultNode(),
-		cache:   cache,
-		service: service,
-		options: opts,
+		Node:        nodefs.NewDefaultNode(),
+		cache:       cache,
+		service:     service,
+		options:     opts,
+		manifestXML: xml,
 	}
 
 	for _, p := range opts.Manifest.Project {
@@ -53,7 +61,6 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 		}
 	}
 
-	var err error
 	root.trees, err = fetchTreeMap(cache.Tree, service, opts.Manifest)
 	if err != nil {
 		return nil, err
@@ -68,7 +75,7 @@ func (fs *manifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 			fs.Inode().RmChild(k)
 		}
 
-		fs.Inode().NewChild("ERROR", false, newDataNode(err.Error()))
+		fs.Inode().NewChild("ERROR", false, newDataNode([]byte(err.Error())))
 	}
 
 	// Don't need the trees anymore.
@@ -90,6 +97,8 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	for i, p := range fs.options.Manifest.Project {
 		revmap[p.Path] = &fs.options.Manifest.Project[i]
 	}
+
+	// TODO(hanwen): use parallelism here.
 
 	for _, ps := range byDepth {
 		for _, p := range ps {
@@ -170,6 +179,8 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 			dir.NewChild(left[0], false, node)
 		}
 	}
+
+	fs.Inode().NewChild("manifest.xml", false, newDataNode(fs.manifestXML))
 
 	return nil
 }

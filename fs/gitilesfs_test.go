@@ -286,6 +286,41 @@ func TestManifestFS(t *testing.T) {
 	}
 }
 
+func TestManifestFSXMLFile(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	mf, err := manifest.Parse([]byte(testManifest))
+	if err != nil {
+		t.Fatal("manifest.Parse:", err)
+	}
+
+	opts := ManifestOptions{
+		Manifest: mf,
+	}
+
+	fs, err := NewManifestFS(fix.service, fix.cache, opts)
+	if err != nil {
+		t.Fatalf("NewManifestFS: %v", err)
+	}
+	if err := fix.mount(fs); err != nil {
+		t.Fatalf("mount: %v", err)
+	}
+
+	xmlPath := filepath.Join(fix.mntDir, "manifest.xml")
+	fuseMF, err := manifest.ParseFile(xmlPath)
+	if err != nil {
+		t.Fatalf("ParseFile(%s): %v", xmlPath, err)
+	}
+
+	if !reflect.DeepEqual(fuseMF, mf) {
+		t.Errorf("read back manifest %v, want %v", fuseMF, mf)
+	}
+}
+
 type testFixture struct {
 	dir      string
 	mntDir   string
@@ -384,12 +419,19 @@ func TestMultiFS(t *testing.T) {
 		t.Fatalf("got %v, want non-existent workspace dir", fi)
 	}
 
-	if err := os.Symlink(xmlFile, filepath.Join(fix.mntDir, "config", "ws")); err != nil {
+	configName := filepath.Join(fix.mntDir, "config", "ws")
+	if err := os.Symlink(xmlFile, configName); err != nil {
 		t.Fatalf("Symlink(%s):  %v", xmlFile, err)
 	}
 
 	if _, err := os.Lstat(wsDir); err != nil {
 		t.Fatalf("Lstat(%s): %v", wsDir, err)
+	}
+
+	if got, err := os.Readlink(configName); err != nil {
+		t.Fatalf("Readlink(%s): %", configName, err)
+	} else if want := "../ws/manifest.xml"; got != want {
+		t.Errorf("got link %s, want %s", got, want)
 	}
 
 	fn := filepath.Join(wsDir, "build", "kati", "AUTHORS")

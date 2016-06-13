@@ -17,6 +17,7 @@ package fs
 import (
 	"io/ioutil"
 	"log"
+	"path/filepath"
 
 	"github.com/google/gitfs/cache"
 	"github.com/google/gitfs/gitiles"
@@ -101,7 +102,8 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 
 	config := c.Inode().NewChild(name, false, &configEntryNode{
 		Node: nodefs.NewDefaultNode(),
-		link: []byte(content),
+		// This is sneaky, but it appears to work.
+		link: []byte(filepath.Join("..", name, "manifest.xml")),
 	})
 
 	if err := fs.(*manifestFSRoot).onMount(c.root.fsConn); err != nil {
@@ -117,7 +119,5 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 }
 
 // TODO(hanwen): implement configNode.Unlink
-
-// TODO(hanwen): surface the manifest.xml data used in ManifestFS
 
 // TODO(hanwen): make sure content nodes are shared between workspaces.
