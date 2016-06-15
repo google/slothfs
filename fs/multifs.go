@@ -42,6 +42,8 @@ func (r *multiManifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	})
 }
 
+func (r *configNode) Deletable() bool { return false }
+
 func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions) *multiManifestFSRoot {
 	r := &multiManifestFSRoot{
 		Node:    nodefs.NewDefaultNode(),
@@ -51,6 +53,8 @@ func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions
 	}
 	return r
 }
+
+func (r *multiManifestFSRoot) Deletable() bool { return false }
 
 type configNode struct {
 	nodefs.Node
@@ -70,6 +74,8 @@ func (c *configEntryNode) GetAttr(out *fuse.Attr, f nodefs.File, ctx *fuse.Conte
 func (c *configEntryNode) Readlink(ctx *fuse.Context) ([]byte, fuse.Status) {
 	return c.link, fuse.OK
 }
+
+func (r *configEntryNode) Deletable() bool { return false }
 
 func (c *configNode) Unlink(name string, ctx *fuse.Context) fuse.Status {
 	child := c.root.Inode().RmChild(name)

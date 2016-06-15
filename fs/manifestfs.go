@@ -41,6 +41,8 @@ type manifestFSRoot struct {
 	manifestXML []byte
 }
 
+func (r *manifestFSRoot) Deletable() bool { return false }
+
 // NewManifestFS creates a Manifest FS root node.
 func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOptions) (nodefs.Node, error) {
 	xml, err := opts.Manifest.MarshalXML()

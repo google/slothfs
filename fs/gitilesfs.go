@@ -56,6 +56,8 @@ type linkNode struct {
 	linkTarget []byte
 }
 
+func (n *linkNode) Deletable() bool { return false }
+
 func newLinkNode(target string) *linkNode {
 	return &linkNode{
 		Node:       nodefs.NewDefaultNode(),
@@ -214,6 +216,8 @@ func (d *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.
 	return nodefs.NewDataFile(d.data), fuse.OK
 }
 
+func (n *dataNode) Deletable() bool { return false }
+
 func newDataNode(c []byte) nodefs.Node {
 	return &dataNode{nodefs.NewDefaultNode(), c}
 }
@@ -232,6 +236,8 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 
 	return r
 }
+
+func (r *gitilesRoot) Deletable() bool { return false }
 
 func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	if err := r.onMount(fsConn); err != nil {
