@@ -163,6 +163,35 @@ func newTestServer() (net.Listener, error) {
 	return listener, err
 }
 
+func TestGitilesFSTreeID(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	options := GitilesOptions{}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	want := "58d9fdae2c26d82e04f3fcafc4358b99109f0e70"
+	path := filepath.Join(fix.mntDir, ".gitid")
+	if got, err := ioutil.ReadFile(path); err != nil {
+		t.Errorf("ReadFile(.gitid): %v", err)
+	} else if string(got) != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestGitilesFS(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {

@@ -306,6 +306,9 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		parent.NewChild(base, false, n)
 	}
 
+	r.Inode().NewChild(".gitid",
+		false, newDataNode([]byte(r.tree.ID)))
+
 	// We don't need the tree data anymore.
 	r.tree = nil
 	return nil
