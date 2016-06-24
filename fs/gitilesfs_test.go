@@ -252,6 +252,53 @@ func TestGitilesFS(t *testing.T) {
 	}
 }
 
+func TestManifestFSCloneOption(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	mf, err := manifest.Parse([]byte(testManifest))
+	if err != nil {
+		t.Fatal("manifest.Parse:", err)
+	}
+
+	for i := range mf.Project {
+		mf.Project[i].CloneDepth = "1"
+	}
+
+	opts := ManifestOptions{
+		Manifest: mf,
+	}
+
+	fs, err := NewManifestFS(fix.service, fix.cache, opts)
+	if err != nil {
+		t.Fatalf("NewManifestFS: %v", err)
+	}
+	if err := fix.mount(fs); err != nil {
+		log.Fatalf("MountFileSystem: %v", err)
+	}
+
+	ch := fs.Inode()
+	for _, n := range []string{"build", "kati", "AUTHORS"} {
+		newCh := ch.GetChild(n)
+		if ch == nil {
+			t.Fatalf("node for %q not found. Have %s", n, ch.Children())
+		}
+		ch = newCh
+	}
+
+	giNode, ok := ch.Node().(*gitilesNode)
+	if !ok {
+		t.Fatalf("got node type %T, want *gitilesNode", ch.Node())
+	}
+
+	if giNode.clone {
+		t.Errorf("file had clone set.")
+	}
+}
+
 func TestManifestFS(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {

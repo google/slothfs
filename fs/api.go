@@ -39,13 +39,19 @@ type GitilesOptions struct {
 
 // ManifestOptions holds options for a Manifest file system.
 type ManifestOptions struct {
-	Manifest        *manifest.Manifest
+	Manifest *manifest.Manifest
+
+	// RepoCloneOption matches against the Path field of the
+	// repository within a manifest.
 	RepoCloneOption []CloneOption
 	FileCloneOption []CloneOption
 }
 
 // MultiFSOptions holds options for a file system with multiple manifests.
 type MultiFSOptions struct {
+
+	// RepoCloneOption matches against the Path field of the
+	// repository within a manifest.
 	RepoCloneOption []CloneOption
 	FileCloneOption []CloneOption
 }

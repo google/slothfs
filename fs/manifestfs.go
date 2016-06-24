@@ -33,6 +33,8 @@ type manifestFSRoot struct {
 	service *gitiles.Service
 
 	cache *cache.Cache
+
+	// trees is Path => Tree map.
 	trees map[string]*gitiles.Tree
 
 	options ManifestOptions
@@ -95,9 +97,14 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		byDepth[d] = append(byDepth[d], p)
 	}
 
+	clonablePaths := map[string]bool{}
 	revmap := map[string]*manifest.Project{}
 	for i, p := range fs.options.Manifest.Project {
 		revmap[p.Path] = &fs.options.Manifest.Project[i]
+
+		if p.CloneDepth == "" {
+			clonablePaths[p.Path] = true
+		}
 	}
 
 	// TODO(hanwen): use parallelism here.
@@ -111,11 +118,13 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 				parent = ch
 			}
 
-			clone := true
-			for _, e := range fs.options.RepoCloneOption {
-				if e.RE.FindString(p) != "" {
-					clone = e.Clone
-					break
+			clone, ok := clonablePaths[p]
+			if !ok {
+				for _, e := range fs.options.RepoCloneOption {
+					if e.RE.FindString(p) != "" {
+						clone = e.Clone
+						break
+					}
 				}
 			}
 
@@ -231,7 +240,6 @@ func fetchTreeMap(treeCache *cache.TreeCache, service *gitiles.Service, mf *mani
 		result = append(result, r)
 	}
 
-	//
 	resmap := map[string]*gitiles.Tree{}
 	for _, r := range result {
 		if r.err != nil {

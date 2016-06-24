@@ -112,6 +112,7 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 		RepoCloneOption: c.root.options.RepoCloneOption,
 		FileCloneOption: c.root.options.FileCloneOption,
 	}
+
 	fs, err := NewManifestFS(c.root.gitiles, c.root.cache, options)
 	if err != nil {
 		log.Printf("NewManifestFS(%s): %v", string(content), err)
