@@ -190,6 +190,23 @@ func TestGitilesFSTreeID(t *testing.T) {
 	} else if string(got) != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+
+	data := make([]byte, 1024)
+	sz, err := syscall.Listxattr(filepath.Join(fix.mntDir, "AUTHORS"), data)
+	if err != nil {
+		t.Fatalf("Listxattr: %v", err)
+	}
+	if got, want := string(data[:sz]), xattrName+"\000"; got != want {
+		t.Errorf("got xattrs %q, want %q", got, want)
+	}
+
+	sz, err = syscall.Getxattr(filepath.Join(fix.mntDir, "AUTHORS"), xattrName, data)
+	if err != nil {
+		t.Fatalf("Getxattr: %v", err)
+	}
+	if got, want := "787d767f94fd634ed29cd69ec9f93bab2b25f5d4", string(data[:sz]); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
 }
 
 func TestGitilesFS(t *testing.T) {

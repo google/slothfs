@@ -56,6 +56,10 @@ func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions
 
 func (r *multiManifestFSRoot) Deletable() bool { return false }
 
+func (r *multiManifestFSRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+	return nil, fuse.ENODATA
+}
+
 type configNode struct {
 	nodefs.Node
 	root *multiManifestFSRoot

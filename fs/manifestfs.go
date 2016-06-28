@@ -23,6 +23,7 @@ import (
 	"github.com/google/gitfs/cache"
 	"github.com/google/gitfs/gitiles"
 	"github.com/google/gitfs/manifest"
+	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	git "github.com/libgit2/git2go"
 )
@@ -44,6 +45,10 @@ type manifestFSRoot struct {
 }
 
 func (r *manifestFSRoot) Deletable() bool { return false }
+
+func (r *manifestFSRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+	return nil, fuse.ENODATA
+}
 
 // NewManifestFS creates a Manifest FS root node.
 func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOptions) (nodefs.Node, error) {

@@ -120,7 +120,18 @@ func (n *gitilesNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Co
 	return fuse.OK
 }
 
-// TODO(hanwen): implement extended attributes to read the SHA1.
+const xattrName = "user.gitsha1"
+
+func (n *gitilesNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+	if attribute != xattrName {
+		return nil, fuse.ENODATA
+	}
+	return []byte(n.id.String()), fuse.OK
+}
+
+func (n *gitilesNode) ListXAttr(context *fuse.Context) (attrs []string, code fuse.Status) {
+	return []string{xattrName}, fuse.OK
+}
 
 func (n *gitilesNode) Open(flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
 	if n.root.handleLessIO {
@@ -216,6 +227,10 @@ func (d *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.
 	return nodefs.NewDataFile(d.data), fuse.OK
 }
 
+func (d *dataNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+	return nil, fuse.ENODATA
+}
+
 func (n *dataNode) Deletable() bool { return false }
 
 func newDataNode(c []byte) nodefs.Node {
@@ -238,6 +253,10 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 }
 
 func (r *gitilesRoot) Deletable() bool { return false }
+
+func (n *gitilesRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+	return nil, fuse.ENODATA
+}
 
 func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	if err := r.onMount(fsConn); err != nil {
