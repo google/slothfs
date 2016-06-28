@@ -16,11 +16,15 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"syscall"
+	"time"
 )
 
 type repoTree struct {
@@ -174,8 +178,11 @@ func createLinks(ro, rw *repoTree, roRoot, rwRoot string) error {
 	return nil
 }
 
-// clearLinks removes all symlinks to the RO tree.
-func clearLinks(dir, mount string) error {
+// clearLinks removes all symlinks to the RO tree. It returns the workspace name that was linked before.
+func clearLinks(mount, dir string) (string, error) {
+	mount = filepath.Clean(mount)
+
+	var prefix string
 	var dirs []string
 	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
 		if fi.Mode()&os.ModeSymlink != 0 {
@@ -184,6 +191,7 @@ func clearLinks(dir, mount string) error {
 				return err
 			}
 			if strings.HasPrefix(target, mount) {
+				prefix = target
 				if err := os.Remove(n); err != nil {
 					return err
 				}
@@ -194,18 +202,80 @@ func clearLinks(dir, mount string) error {
 		}
 		return nil
 	}); err != nil {
-		return err
+		return "", err
 	}
 	for _, d := range dirs {
 		// Ignore error: dir may still contain entries.
 		os.Remove(d)
 	}
-	return nil
+
+	prefix = strings.TrimPrefix(prefix, mount+"/")
+	if i := strings.Index(prefix, "/"); i != -1 {
+		prefix = prefix[:i]
+	}
+	return prefix, nil
+}
+
+func getSHA1s(dir string) (map[string]string, error) {
+	attr := "user.gitsha1"
+
+	shamap := map[string]string{}
+
+	data := make([]byte, 1024)
+
+	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
+		if fi.Mode()&os.ModeType != 0 {
+			return nil
+		}
+		if filepath.Base(n) == ".gitid" {
+			return nil
+		}
+
+		sz, err := syscall.Getxattr(n, attr, data)
+		if err != nil {
+			return fmt.Errorf("Getxattr(%s, %s): %v", n, attr, err)
+		}
+		rel, err := filepath.Rel(dir, n)
+		if err != nil {
+			return err
+		}
+		shamap[rel] = string(data[:sz])
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return shamap, nil
+}
+
+// Returns the filenames (as relative paths) in newDir that have
+// changed relative to the files in oldDir.
+func changedFiles(oldDir, newDir string) ([]string, error) {
+	// TODO(hanwen): could be parallel.
+	oldSHA1s, err := getSHA1s(oldDir)
+	if err != nil {
+		return nil, err
+	}
+	newSHA1s, err := getSHA1s(newDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var changed []string
+	for k, v := range newSHA1s {
+		old, ok := oldSHA1s[k]
+		if !ok || old != v {
+			changed = append(changed, k)
+		}
+	}
+	sort.Strings(changed)
+	return changed, nil
 }
 
 // populateCheckout updates a RW dir with new symlinks to the given RO dir.
 func populateCheckout(ro, rw string) error {
-	if err := clearLinks(ro, rw); err != nil {
+	wsName, err := clearLinks(filepath.Dir(ro), rw)
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -219,7 +289,26 @@ func populateCheckout(ro, rw string) error {
 		return err
 	}
 
-	return createLinks(roTree, rwTree, ro, rw)
+	if err := createLinks(roTree, rwTree, ro, rw); err != nil {
+		return err
+	}
+
+	// TODO(hanwen): can be done in parallel to the other processes.
+	oldRoot := filepath.Join(filepath.Dir(ro), wsName)
+	changed, err := changedFiles(oldRoot, ro)
+	if err != nil {
+		return fmt.Errorf("changedFiles: %v", err)
+	}
+
+	// TODO(hanwen): parallel?
+	now := time.Now()
+	for _, n := range changed {
+		if err := os.Chtimes(filepath.Join(ro, n), now, now); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func main() {

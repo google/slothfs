@@ -1,12 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+	"syscall"
 	"testing"
 )
+
+const attr = "user.gitsha1"
+const checksum = "3f75526aa8f01eea5d76cee10722195dc73676de"
 
 func createFSTree(names []string) (string, error) {
 	dir, err := ioutil.TempDir("", "")
@@ -21,6 +26,9 @@ func createFSTree(names []string) (string, error) {
 		}
 		if err := ioutil.WriteFile(p, []byte{42}, 0644); err != nil {
 			return dir, err
+		}
+		if err := syscall.Setxattr(p, attr, []byte(checksum), 0); err != nil {
+			return dir, fmt.Errorf("Setxattr: %v", err)
 		}
 	}
 	return dir, nil
@@ -99,6 +107,10 @@ func TestPopulate(t *testing.T) {
 		t.Fatal("createFSTree:", err)
 	}
 
+	if err := os.Symlink(filepath.Join(dir, "ro/obsolete"), filepath.Join(dir, "rw/obsolete")); err != nil {
+		t.Errorf("Symlink: %v", err)
+	}
+
 	if err := populateCheckout(filepath.Join(dir, "ro"), filepath.Join(dir, "rw")); err != nil {
 		t.Errorf("populateCheckout: %v", err)
 	}
@@ -130,4 +142,33 @@ func TestPopulate(t *testing.T) {
 		}
 	}
 
+	if fi, err := os.Lstat(filepath.Join(dir, "rw/obsolete")); err == nil {
+		t.Fatalf("obsolete symlink still there: %v", fi)
+	}
+}
+
+func TestChangedFiles(t *testing.T) {
+	dir, err := createFSTree([]string{
+		"r1/a",
+		"r1/b",
+		"r2/a",
+		"r2/b",
+		"r2/c",
+	})
+	if err != nil {
+		t.Fatalf("createFSTree: %v", err)
+	}
+
+	ck2 := "3f75526aa8f01eea5d76cee10722195dc73676df"
+	if err := syscall.Setxattr(filepath.Join(dir, "r2/b"), attr, []byte(ck2), 0); err != nil {
+		t.Fatalf("Setxattr: %v", err)
+	}
+
+	got, err := changedFiles(filepath.Join(dir, "r1"), filepath.Join(dir, "r2"))
+	if err != nil {
+		t.Fatalf("changedFiles: %v", err)
+	}
+	if want := []string{"b", "c"}; !reflect.DeepEqual(want, got) {
+		t.Errorf("got %v, want %v", got, want)
+	}
 }
