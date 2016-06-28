@@ -33,7 +33,8 @@ type manifestFSRoot struct {
 
 	service *gitiles.Service
 
-	cache *cache.Cache
+	cache     *cache.Cache
+	nodeCache *nodeCache
 
 	// trees is Path => Tree map.
 	trees map[string]*gitiles.Tree
@@ -58,6 +59,7 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 	}
 	root := &manifestFSRoot{
 		Node:        nodefs.NewDefaultNode(),
+		nodeCache:   newNodeCache(),
 		cache:       cache,
 		service:     service,
 		options:     opts,
@@ -147,6 +149,7 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 			}
 
 			subRoot := NewGitilesRoot(fs.cache, fs.trees[p], repoService, opts)
+			subRoot.(*gitilesRoot).nodeCache = fs.nodeCache
 			parent.NewChild(base, true, subRoot)
 			if err := subRoot.(*gitilesRoot).onMount(fsConn); err != nil {
 				return fmt.Errorf("onMount(%s): %v", p, err)

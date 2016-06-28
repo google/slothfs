@@ -28,10 +28,11 @@ import (
 
 type multiManifestFSRoot struct {
 	nodefs.Node
-	cache   *cache.Cache
-	fsConn  *nodefs.FileSystemConnector
-	options MultiFSOptions
-	gitiles *gitiles.Service
+	nodeCache *nodeCache
+	cache     *cache.Cache
+	fsConn    *nodefs.FileSystemConnector
+	options   MultiFSOptions
+	gitiles   *gitiles.Service
 }
 
 func (r *multiManifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
@@ -46,10 +47,11 @@ func (r *configNode) Deletable() bool { return false }
 
 func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions) *multiManifestFSRoot {
 	r := &multiManifestFSRoot{
-		Node:    nodefs.NewDefaultNode(),
-		cache:   c,
-		options: options,
-		gitiles: service,
+		Node:      nodefs.NewDefaultNode(),
+		nodeCache: newNodeCache(),
+		cache:     c,
+		options:   options,
+		gitiles:   service,
 	}
 	return r
 }
@@ -122,6 +124,7 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 		log.Printf("NewManifestFS(%s): %v", string(content), err)
 		return nil, fuse.EIO
 	}
+	fs.(*manifestFSRoot).nodeCache = c.root.nodeCache
 
 	ch := c.root.Inode().NewChild(name, true, fs)
 	if ch == nil {
@@ -146,7 +149,3 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 
 	return config, fuse.OK
 }
-
-// TODO(hanwen): implement configNode.Unlink
-
-// TODO(hanwen): make sure content nodes are shared between workspaces.

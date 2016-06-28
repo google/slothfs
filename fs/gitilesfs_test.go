@@ -40,8 +40,10 @@ const fuseDebug = false
 
 func init() {
 	enc := map[string]string{
-		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT": `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
-		"/platform/build/kati/+/ce34badf691d36e8048b63f89d1a86ee5fa4325c/testcase/addprefix.mk":   "dGVzdDoKCWVjaG8gJChhZGRwcmVmaXggc3JjLyxmb28gYmFyKQo=",
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT":  `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORSx?format=TEXT": `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS2?format=TEXT": `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
+		"/platform/build/kati/+/ce34badf691d36e8048b63f89d1a86ee5fa4325c/testcase/addprefix.mk":    "dGVzdDoKCWVjaG8gJChhZGRwcmVmaXggc3JjLyxmb28gYmFyKQo=",
 	}
 	for k, v := range enc {
 		c := make([]byte, base64.StdEncoding.DecodedLen(len(v)))
@@ -106,6 +108,20 @@ var testGitiles = map[string]string{
     {
       "mode": 33188,
       "type": "blob",
+      "id": "787d767f94fd634ed29cd69ec9f93bab2b25f5d4",
+      "name": "AUTHORS2",
+      "size": 373
+    },
+    {
+      "mode": 33261,
+      "type": "blob",
+      "id": "787d767f94fd634ed29cd69ec9f93bab2b25f5d4",
+      "name": "AUTHORSx",
+      "size": 373
+    },
+    {
+      "mode": 33188,
+      "type": "blob",
       "id": "91c29720b08211898308eb2b6bde8bd3208c6dcd",
       "name": "Android.bp",
       "size": 1935
@@ -161,6 +177,45 @@ func newTestServer() (net.Listener, error) {
 	}
 	go s.Serve(listener)
 	return listener, err
+}
+
+func TestGitilesFSSharedNodes(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	options := GitilesOptions{}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	ch1 := fs.Inode().GetChild("AUTHORS")
+	if ch1 == nil {
+		t.Fatalf("node for AUTHORS not found")
+	}
+
+	ch2 := fs.Inode().GetChild("AUTHORS2")
+	if ch2 == nil {
+		t.Fatalf("node for AUTHORS2 not found")
+	}
+
+	if ch1 != ch2 {
+		t.Error("equal blobs did not share inodes.")
+	}
+	ch3 := fs.Inode().GetChild("AUTHORSx")
+	if ch1 == ch3 {
+		t.Error("blob with different modes shared inode.")
+	}
 }
 
 func TestGitilesFSTreeID(t *testing.T) {

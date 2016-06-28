@@ -35,6 +35,8 @@ import (
 type gitilesRoot struct {
 	nodefs.Node
 
+	nodeCache *nodeCache
+
 	cache   *cache.Cache
 	service *gitiles.RepoService
 	tree    *gitiles.Tree
@@ -244,13 +246,14 @@ func newDataNode(c []byte) nodefs.Node {
 // NewGitilesRoot returns the root node for a file system.
 func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesOptions) nodefs.Node {
 	r := &gitilesRoot{
-		Node:     nodefs.NewDefaultNode(),
-		service:  service,
-		cache:    c,
-		shaMap:   map[git.Oid]string{},
-		tree:     tree,
-		opts:     options,
-		lazyRepo: cache.NewLazyRepo(options.CloneURL, c),
+		Node:      nodefs.NewDefaultNode(),
+		service:   service,
+		nodeCache: newNodeCache(),
+		cache:     c,
+		shaMap:    map[git.Oid]string{},
+		tree:      tree,
+		opts:      options,
+		lazyRepo:  cache.NewLazyRepo(options.CloneURL, c),
 	}
 
 	return r
@@ -306,27 +309,36 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 			}
 		}
 
-		n := &gitilesNode{
-			Node:  nodefs.NewDefaultNode(),
-			id:    *id,
-			mode:  uint32(e.Mode),
-			clone: clone,
-			root:  r,
-			// Ninja uses mtime == 0 as "doesn't exist"
-			// flag, (see ninja/files/src/graph.h:66), so
-			// use a nonzero timestamp here.
-			mtime: time.Unix(1, 0),
-		}
-		if e.Size != nil {
-			n.size = int64(*e.Size)
+		xbit := e.Mode&0111 != 0
+		n := r.nodeCache.get(id, xbit)
+		if n == nil {
+			n = &gitilesNode{
+				Node:  nodefs.NewDefaultNode(),
+				id:    *id,
+				mode:  uint32(e.Mode),
+				clone: clone,
+				root:  r,
+				// Ninja uses mtime == 0 as "doesn't exist"
+				// flag, (see ninja/files/src/graph.h:66), so
+				// use a nonzero timestamp here.
+				mtime: time.Unix(1, 0),
+			}
+			if e.Size != nil {
+				n.size = int64(*e.Size)
+			}
+
+			if e.Target != nil {
+				n.linkTarget = []byte(*e.Target)
+				n.size = int64(len(n.linkTarget))
+			}
+
+			r.shaMap[*id] = p
+			parent.NewChild(base, false, n)
+			r.nodeCache.add(n)
+		} else {
+			parent.AddChild(base, n.Inode())
 		}
 
-		if e.Target != nil {
-			n.linkTarget = []byte(*e.Target)
-			n.size = int64(len(n.linkTarget))
-		}
-		r.shaMap[*id] = p
-		parent.NewChild(base, false, n)
 	}
 
 	r.Inode().NewChild(".gitid",
