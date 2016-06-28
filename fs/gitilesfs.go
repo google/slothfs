@@ -44,9 +44,6 @@ type gitilesRoot struct {
 	tree    *gitiles.Tree
 	opts    GitilesOptions
 
-	// TODO(hanwen): enable this again. After mount, set this to
-	// server.KernelSettings().Flags&fuse.CAP_NO_OPEN_SUPPORT != 0.
-	// This requires a suitably new kernel, though.
 	handleLessIO bool
 
 	// OID => path
@@ -437,5 +434,9 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 	// We don't need the tree data anymore.
 	r.tree = nil
+
+	if fsConn.Server().KernelSettings().Flags&fuse.CAP_NO_OPEN_SUPPORT != 0 {
+		r.handleLessIO = true
+	}
 	return nil
 }
