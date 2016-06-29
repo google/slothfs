@@ -1,4 +1,6 @@
-For contributions, we need a CL, and generally follow the process
-documented at
+For contributions, we need a change in Gerrit, and generally follow
+the process documented at
 
   https://gerrit-review.googlesource.com/Documentation/dev-contributing.html
+
+As a prerequisite, we will need also Google CLA on file.
