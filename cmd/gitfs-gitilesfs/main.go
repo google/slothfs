@@ -17,6 +17,8 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/gitfs/cache"
@@ -30,7 +32,7 @@ func main() {
 	branch := flag.String("branch", "master", "branch name")
 	repo := flag.String("repo", "", "repository name")
 	debug := flag.Bool("debug", false, "print debug info")
-	cacheDir := flag.String("cache", "", "cache dir")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "gitfs"), "cache dir")
 	flag.Parse()
 
 	if *cacheDir == "" {

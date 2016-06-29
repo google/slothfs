@@ -16,7 +16,10 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/gitfs/cache"
@@ -29,7 +32,7 @@ import (
 func main() {
 	manifestPath := flag.String("manifest", "", "expanded manifest file path")
 	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
-	cacheDir := flag.String("cache", "", "cache dir")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "gitfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
 	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
 	flag.Parse()
