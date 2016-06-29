@@ -108,13 +108,15 @@ func GetTree(repo *git.Repository, id *git.Oid) (*gitiles.Tree, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer obj.Free()
 
-	obj, err = obj.Peel(git.ObjectTree)
+	peeledObj, err := obj.Peel(git.ObjectTree)
 	if err != nil {
 		return nil, err
 	}
+	defer peeledObj.Free()
 
-	asTree, err := obj.AsTree()
+	asTree, err := peeledObj.AsTree()
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +125,10 @@ func GetTree(repo *git.Repository, id *git.Oid) (*gitiles.Tree, error) {
 	tree.ID = obj.Id().String()
 
 	odb, err := repo.Odb()
-
 	if err != nil {
 		return nil, err
 	}
+	defer odb.Free()
 
 	cb := func(n string, e *git.TreeEntry) int {
 		t := ""
@@ -163,6 +165,7 @@ func GetTree(repo *git.Repository, id *git.Oid) (*gitiles.Tree, error) {
 				err = lookErr
 				return -1
 			}
+			defer obj.Free()
 
 			blob, blobErr := obj.AsBlob()
 			if blobErr != nil {

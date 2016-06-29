@@ -70,7 +70,7 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 		}
 	}
 
-	root.trees, err = fetchTreeMap(cache.Tree, service, opts.Manifest)
+	root.trees, err = fetchTreeMap(cache, service, opts.Manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -201,16 +201,12 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	return nil
 }
 
-func fetchTreeMap(treeCache *cache.TreeCache, service *gitiles.Service, mf *manifest.Manifest) (map[string]*gitiles.Tree, error) {
+func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifest) (map[string]*gitiles.Tree, error) {
 	type resultT struct {
 		path string
 		resp *gitiles.Tree
 		err  error
 	}
-
-	// TODO(hanwen): if we have the repository, and commit
-	// locally, we should use cache.GetTree() instead of putting
-	// load on the remote Gitiles.
 
 	// Fetch all the trees in parallel.
 	out := make(chan resultT, len(mf.Project))
@@ -222,13 +218,20 @@ func fetchTreeMap(treeCache *cache.TreeCache, service *gitiles.Service, mf *mani
 				return
 			}
 
-			tree, err := treeCache.Get(revID)
+			tree, err := c.Tree.Get(revID)
+			if err != nil {
+				if repo := c.Git.OpenLocal(p.CloneURL); repo != nil {
+					defer repo.Free()
+					tree, err = cache.GetTree(repo, revID)
+				}
+			}
+
 			if err != nil {
 				repoService := service.NewRepoService(p.Name)
 
 				tree, err = repoService.GetTree(p.Revision, "", true)
 				if err == nil {
-					if err := treeCache.Add(revID, tree); err != nil {
+					if err := c.Tree.Add(revID, tree); err != nil {
 						log.Printf("treeCache.Add: %v", err)
 					}
 				}

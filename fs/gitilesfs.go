@@ -179,6 +179,9 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 		if clone && repo == nil {
 			r.lazyRepo.Clone()
 		}
+		if repo != nil {
+			defer repo.Free()
+		}
 
 		var content []byte
 		if repo != nil {
@@ -187,6 +190,7 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 				log.Println("LookupBlob: %v", err)
 				return nil, syscall.ESPIPE
 			}
+			defer blob.Free()
 			content = blob.Contents()
 		} else {
 			path := r.shaMap[id]

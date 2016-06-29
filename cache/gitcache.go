@@ -119,6 +119,20 @@ func (c *gitCache) runGit(dir string, args ...string) error {
 	return runErr
 }
 
+// OpenLocal returns an opened repository for the given URL, if it is available locally.
+func (c *gitCache) OpenLocal(url string) *git.Repository {
+	p, err := c.gitPath(url)
+	if err != nil {
+		return nil
+	}
+
+	repo, err := git.OpenRepository(p)
+	if err != nil {
+		return nil
+	}
+	return repo
+}
+
 // Open returns an opened repository for the given URL. If necessary,
 // the repository is cloned.
 func (c *gitCache) Open(url string) (*git.Repository, error) {
