@@ -10,7 +10,7 @@ To start the file system:
 
     go install github.com/google/gitfs/cmd/gitfs-multifs
     mkdir /tmp/mnt
-    gitfs-multifs -cache /tmp/cache -gitiles https://android.googlesource.com/  /tmp/mnt &
+    gitfs-multifs -gitiles https://android.googlesource.com/  /tmp/mnt &
 
 To create a workspace "ws" corresponding to the latest manifest version
 
