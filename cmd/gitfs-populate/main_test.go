@@ -149,8 +149,10 @@ func TestPopulate(t *testing.T) {
 
 func TestChangedFiles(t *testing.T) {
 	dir, err := createFSTree([]string{
+		"r1/manifest.xml",
 		"r1/a",
 		"r1/b",
+		"r2/manifest.xml",
 		"r2/a",
 		"r2/b",
 		"r2/c",
@@ -160,8 +162,10 @@ func TestChangedFiles(t *testing.T) {
 	}
 
 	ck2 := "3f75526aa8f01eea5d76cee10722195dc73676df"
-	if err := syscall.Setxattr(filepath.Join(dir, "r2/b"), attr, []byte(ck2), 0); err != nil {
-		t.Fatalf("Setxattr: %v", err)
+	for _, changed := range []string{"r2/b", "r2/manifest.xml"} {
+		if err := syscall.Setxattr(filepath.Join(dir, changed), attr, []byte(ck2), 0); err != nil {
+			t.Fatalf("Setxattr: %v", err)
+		}
 	}
 
 	got, err := changedFiles(filepath.Join(dir, "r1"), filepath.Join(dir, "r2"))

@@ -224,6 +224,9 @@ func getSHA1s(dir string) (map[string]string, error) {
 	data := make([]byte, 1024)
 
 	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
+		if n == filepath.Join(dir, "manifest.xml") {
+			return nil
+		}
 		if fi.Mode()&os.ModeType != 0 {
 			return nil
 		}
