@@ -176,3 +176,35 @@ func TestChangedFiles(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+func TestClearEmptyDirs(t *testing.T) {
+	dir, err := createFSTree([]string{
+		"ro/build/sub/sub2/p1/.gitid",
+		"ro/build/sub/sub2/p1/build.mk",
+
+		"rw/build/proj/.git/HEAD",
+		"rw/build/proj/build.mk",
+
+		"r3/toplevel",
+	})
+	if err != nil {
+		t.Fatal("createFSTree:", err)
+	}
+
+	dest := filepath.Join(dir, "rw", "build/sub/sub2/p1")
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		t.Errorf("MkdirAll: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "ro", "build/sub/sub2/p1"), dest); err != nil {
+		t.Errorf("Symlink(%s): %v", dest, err)
+	}
+
+	if err := populateCheckout(filepath.Join(dir, "r3"), filepath.Join(dir, "rw")); err != nil {
+		t.Errorf("populateCheckout: %v", err)
+	}
+
+	gone := filepath.Join(dir, "rw", "build", "sub")
+	if fi, err := os.Lstat(gone); err == nil {
+		t.Errorf("directory %s still there: %v", gone, fi)
+	}
+}

@@ -204,7 +204,11 @@ func clearLinks(mount, dir string) (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	for _, d := range dirs {
+
+	// Reverse the ordering, so we get the deepest subdirs first.
+	sort.Strings(dirs)
+	for i := range dirs {
+		d := dirs[len(dirs)-1-i]
 		// Ignore error: dir may still contain entries.
 		os.Remove(d)
 	}
