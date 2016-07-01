@@ -189,7 +189,7 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 		if repo != nil {
 			blob, err := repo.LookupBlob(&id)
 			if err != nil {
-				log.Println("LookupBlob: %v", err)
+				log.Printf("LookupBlob: %v", err)
 				return nil, syscall.ESPIPE
 			}
 			defer blob.Free()
