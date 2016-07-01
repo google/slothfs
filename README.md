@@ -55,9 +55,9 @@ Together, the following `config.json` file is a good start for working on
 android:
 
     [{"Repo": ".*darwin.*", "Clone": false},
-     {"File": ".*mk$", "Clone": true}]
+     {"File": ".*mk$", "Clone": false}]
 
-
+A more elaborate configuration file is included as `android.json`.
 
 DISCLAIMER
 ==========
