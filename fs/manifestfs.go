@@ -58,7 +58,7 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 		return nil, err
 	}
 	root := &manifestFSRoot{
-		Node:        nodefs.NewDefaultNode(),
+		Node:        newDirNode(),
 		nodeCache:   newNodeCache(),
 		cache:       cache,
 		service:     service,
@@ -121,7 +121,7 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 			dir, base := filepath.Split(p)
 			parent, left := fsConn.Node(fs.Inode(), dir)
 			for _, c := range left {
-				ch := parent.NewChild(c, true, nodefs.NewDefaultNode())
+				ch := parent.NewChild(c, true, newDirNode())
 				parent = ch
 			}
 

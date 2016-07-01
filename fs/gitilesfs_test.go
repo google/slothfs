@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -386,7 +387,30 @@ func TestManifestFSCloneOption(t *testing.T) {
 	}
 }
 
-func TestManifestFS(t *testing.T) {
+func TestManifestFSTimestamps(t *testing.T) {
+	fix, err := newManifestTestFixture(testManifest)
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	var zeroFiles []string
+	if err := filepath.Walk(fix.mntDir, func(n string, fi os.FileInfo, err error) error {
+		if fi != nil && fi.ModTime().UnixNano() == 0 {
+			r, _ := filepath.Rel(fix.mntDir, n)
+			zeroFiles = append(zeroFiles, r)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if len(zeroFiles) > 0 {
+		sort.Strings(zeroFiles)
+		t.Errorf("found files with zero timestamps: %v", zeroFiles)
+	}
+}
+
+func TestManifestFSBasic(t *testing.T) {
 	fix, err := newManifestTestFixture(testManifest)
 	if err != nil {
 		t.Fatal("newTestFixture", err)

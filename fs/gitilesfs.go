@@ -70,6 +70,10 @@ func newLinkNode(target string) *linkNode {
 func (n *linkNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
 	out.Size = uint64(len(n.linkTarget))
 	out.Mode = fuse.S_IFLNK
+
+	t := time.Unix(1, 0)
+	out.SetTimes(nil, &t, nil)
+
 	return fuse.OK
 }
 
@@ -223,6 +227,9 @@ type dataNode struct {
 func (n *dataNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
 	out.Size = uint64(len(n.data))
 	out.Mode = fuse.S_IFREG | 0644
+	t := time.Unix(1, 0)
+	out.SetTimes(nil, &t, nil)
+
 	return fuse.OK
 }
 
@@ -243,7 +250,7 @@ func newDataNode(c []byte) nodefs.Node {
 // NewGitilesRoot returns the root node for a file system.
 func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesOptions) nodefs.Node {
 	r := &gitilesRoot{
-		Node:      nodefs.NewDefaultNode(),
+		Node:      newDirNode(),
 		service:   service,
 		nodeCache: newNodeCache(),
 		cache:     c,
@@ -272,6 +279,21 @@ func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	}
 }
 
+type dirNode struct {
+	nodefs.Node
+}
+
+func (n *dirNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
+	out.Mode = fuse.S_IFDIR | 0755
+	t := time.Unix(1, 0)
+	out.SetTimes(nil, &t, nil)
+	return fuse.OK
+}
+
+func newDirNode() nodefs.Node {
+	return &dirNode{nodefs.NewDefaultNode()}
+}
+
 func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	for _, e := range r.tree.Entries {
 		if e.Type == "commit" {
@@ -287,7 +309,7 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 		parent, left := fsConn.Node(r.Inode(), dir)
 		for _, l := range left {
-			ch := parent.NewChild(l, true, nodefs.NewDefaultNode())
+			ch := parent.NewChild(l, true, newDirNode())
 			parent = ch
 		}
 		id, err := git.NewOid(e.ID)
