@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/gitfs/cache"
 	"github.com/google/gitfs/gitiles"
@@ -527,8 +528,14 @@ func (f *testFixture) mount(root nodefs.Node) error {
 		return err
 	}
 
+	fuseOpts := &nodefs.Options{
+		EntryTimeout:    time.Hour,
+		NegativeTimeout: time.Hour,
+		AttrTimeout:     time.Hour,
+	}
+
 	var err error
-	f.server, _, err = nodefs.MountRoot(f.mntDir, root, nil)
+	f.server, _, err = nodefs.MountRoot(f.mntDir, root, fuseOpts)
 	if err != nil {
 		return err
 	}
@@ -542,17 +549,12 @@ func (f *testFixture) mount(root nodefs.Node) error {
 	return nil
 }
 
-func TestMultiFS(t *testing.T) {
+func TestMultiFSBrokenXML(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
 		t.Fatalf("newTestFixture: %v", err)
 	}
 	defer fix.cleanup()
-
-	xmlFile := filepath.Join(fix.dir, "manifest.xml")
-	if err := ioutil.WriteFile(xmlFile, []byte(testManifestXML), 0644); err != nil {
-		t.Errorf("WriteFile(%s): %v", xmlFile, err)
-	}
 
 	brokenXMLFile := filepath.Join(fix.dir, "broken.xml")
 	if err := ioutil.WriteFile(brokenXMLFile, []byte("I'm not XML."), 0644); err != nil {
@@ -568,6 +570,26 @@ func TestMultiFS(t *testing.T) {
 
 	if err := os.Symlink(brokenXMLFile, filepath.Join(fix.mntDir, "config", "ws")); err == nil {
 		t.Fatalf("want error for broken XML file")
+	}
+}
+
+func TestMultiFSBasic(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatalf("newTestFixture: %v", err)
+	}
+	defer fix.cleanup()
+
+	xmlFile := filepath.Join(fix.dir, "manifest.xml")
+	if err := ioutil.WriteFile(xmlFile, []byte(testManifestXML), 0644); err != nil {
+		t.Errorf("WriteFile(%s): %v", xmlFile, err)
+	}
+
+	opts := MultiFSOptions{}
+	fs := NewMultiFS(fix.service, fix.cache, opts)
+
+	if err := fix.mount(fs); err != nil {
+		t.Fatalf("mount: %v", err)
 	}
 
 	wsDir := filepath.Join(fix.mntDir, "ws")

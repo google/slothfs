@@ -126,8 +126,8 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 	}
 	fs.(*manifestFSRoot).nodeCache = c.root.nodeCache
 
-	ch := c.root.Inode().NewChild(name, true, fs)
-	if ch == nil {
+	child := c.root.Inode().NewChild(name, true, fs)
+	if child == nil {
 		// TODO(hanwen): can this ever happen?
 		return nil, fuse.EINVAL
 	}
@@ -140,12 +140,14 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 
 	if err := fs.(*manifestFSRoot).onMount(c.root.fsConn); err != nil {
 		log.Println("onMount(%s): %v", name, err)
-		for k := range ch.Children() {
-			ch.RmChild(k)
+		for k := range child.Children() {
+			child.RmChild(k)
 		}
 
-		ch.NewChild("ERROR", false, &dataNode{nodefs.NewDefaultNode(), []byte(err.Error())})
+		child.NewChild("ERROR", false, &dataNode{nodefs.NewDefaultNode(), []byte(err.Error())})
 	}
+
+	c.root.fsConn.EntryNotify(c.root.Inode(), name)
 
 	return config, fuse.OK
 }
