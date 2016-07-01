@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -157,11 +158,23 @@ var testGitiles = map[string]string{
 `,
 }
 
-func handleStatic(w http.ResponseWriter, r *http.Request) {
+type testServer struct {
+	listener net.Listener
+	mu       sync.Mutex
+	requests map[string]int
+}
+
+func (s *testServer) handleStatic(w http.ResponseWriter, r *http.Request) {
 	log.Println("handling", r.URL.String())
+
+	s.mu.Lock()
+	s.requests[r.URL.Path]++
+	s.mu.Unlock()
+
 	resp, ok := testGitiles[r.URL.String()]
 	if !ok {
 		http.Error(w, "not found", 404)
+		return
 	}
 
 	out := []byte(resp)
@@ -175,20 +188,27 @@ func handleStatic(w http.ResponseWriter, r *http.Request) {
 	// TODO(hanwen): set content type?
 }
 
-func newTestServer() (net.Listener, error) {
+func newTestServer() (*testServer, error) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return nil, err
+	}
+
+	ts := &testServer{
+		listener: listener,
+		requests: map[string]int{},
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleStatic)
+	mux.HandleFunc("/", ts.handleStatic)
 
 	s := &http.Server{
 		Handler: mux,
 	}
 
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return nil, err
-	}
-	go s.Serve(listener)
-	return listener, err
+	go s.Serve(ts.listener)
+
+	return ts, err
 }
 
 func TestGitilesFSSharedNodes(t *testing.T) {
@@ -336,6 +356,47 @@ func TestGitilesFS(t *testing.T) {
 	}
 }
 
+func TestGitilesFSMultiFetch(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	options := GitilesOptions{
+		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
+	}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	fn := filepath.Join(fix.mntDir, "AUTHORS")
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			ioutil.ReadFile(fn)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	for key, got := range fix.testServer.requests {
+		if got != 1 {
+			t.Errorf("got request count %d for %s, want 1", got, key)
+		}
+	}
+}
+
 func newManifestTestFixture(mf *manifest.Manifest) (*testFixture, error) {
 	fix, err := newTestFixture()
 	if err != nil {
@@ -476,18 +537,18 @@ func TestManifestFSXMLFile(t *testing.T) {
 }
 
 type testFixture struct {
-	dir      string
-	mntDir   string
-	server   *fuse.Server
-	cache    *cache.Cache
-	listener net.Listener
-	service  *gitiles.Service
-	root     nodefs.Node
+	dir        string
+	mntDir     string
+	server     *fuse.Server
+	cache      *cache.Cache
+	testServer *testServer
+	service    *gitiles.Service
+	root       nodefs.Node
 }
 
 func (f *testFixture) cleanup() {
-	if f.listener != nil {
-		f.listener.Close()
+	if f.testServer != nil {
+		f.testServer.listener.Close()
 	}
 	if f.server != nil {
 		f.server.Unmount()
@@ -508,13 +569,13 @@ func newTestFixture() (*testFixture, error) {
 		return nil, err
 	}
 
-	fixture.listener, err = newTestServer()
+	fixture.testServer, err = newTestServer()
 	if err != nil {
 		return nil, err
 	}
 
 	fixture.service, err = gitiles.NewService(
-		fmt.Sprintf("http://%s", fixture.listener.Addr().String()))
+		fmt.Sprintf("http://%s", fixture.testServer.listener.Addr().String()))
 	if err != nil {
 		return nil, err
 	}

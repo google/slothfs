@@ -15,6 +15,7 @@
 package fs
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -51,6 +52,9 @@ type gitilesRoot struct {
 	shaMap map[git.Oid]string
 
 	lazyRepo *cache.LazyRepo
+
+	fetchingCond *sync.Cond
+	fetching     map[git.Oid]bool
 }
 
 type linkNode struct {
@@ -180,42 +184,78 @@ func (n *gitilesNode) handleLessRead(file nodefs.File, dest []byte, off int64, c
 // given, we may try a clone of the git repository
 func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 	f, ok := r.cache.Blob.Open(id)
-	if !ok {
-		repo := r.lazyRepo.Repository()
-		if clone && repo == nil {
-			r.lazyRepo.Clone()
-		}
+	if ok {
+		return f, nil
+	}
 
-		var content []byte
-		if repo != nil {
-			blob, err := repo.LookupBlob(&id)
-			if err != nil {
-				log.Printf("LookupBlob: %v", err)
-				return nil, syscall.ESPIPE
-			}
-			defer blob.Free()
-			content = blob.Contents()
-		} else {
-			path := r.shaMap[id]
+	f, err := r.fetchFile(id, clone)
+	if err != nil {
+		log.Printf("fetchFile(%s): %v", id, err)
+		return nil, syscall.ESPIPE
+	}
 
-			var err error
-			content, err = r.service.GetBlob(r.opts.Revision, path)
-			if err != nil {
-				log.Printf("GetBlob(%s, %s): %v", r.opts.Revision, path, err)
-				return nil, syscall.EDOM
-			}
-		}
+	return f, nil
+}
 
-		if err := r.cache.Blob.Write(id, content); err != nil {
-			return nil, err
-		}
+func (r *gitilesRoot) fetchFile(id git.Oid, clone bool) (*os.File, error) {
+	r.fetchingCond.L.Lock()
+	defer r.fetchingCond.L.Unlock()
 
+	for r.fetching[id] {
+		r.fetchingCond.Wait()
+	}
+
+	f, ok := r.cache.Blob.Open(id)
+	if ok {
+		return f, nil
+	}
+
+	r.fetching[id] = true
+	defer func() { delete(r.fetching, id) }()
+	r.fetchingCond.L.Unlock()
+	err := r.fetchFileExpensive(id, clone)
+	r.fetchingCond.L.Lock()
+	r.fetchingCond.Broadcast()
+
+	if err == nil {
 		f, ok = r.cache.Blob.Open(id)
 		if !ok {
-			return nil, syscall.EROFS
+			return nil, fmt.Errorf("fetch succeeded, but blob %s not there", id.String())
+		}
+		return f, nil
+	}
+
+	return nil, err
+}
+
+func (r *gitilesRoot) fetchFileExpensive(id git.Oid, clone bool) error {
+	repo := r.lazyRepo.Repository()
+	if clone && repo == nil {
+		r.lazyRepo.Clone()
+	}
+
+	var content []byte
+	if repo != nil {
+		blob, err := repo.LookupBlob(&id)
+		if err != nil {
+			return err
+		}
+		defer blob.Free()
+		content = blob.Contents()
+	} else {
+		path := r.shaMap[id]
+
+		var err error
+		content, err = r.service.GetBlob(r.opts.Revision, path)
+		if err != nil {
+			return fmt.Errorf("GetBlob(%s, %s): %v", r.opts.Revision, path, err)
 		}
 	}
-	return f, nil
+
+	if err := r.cache.Blob.Write(id, content); err != nil {
+		return err
+	}
+	return nil
 }
 
 // dataNode makes arbitrary data available as a file.
@@ -250,14 +290,16 @@ func newDataNode(c []byte) nodefs.Node {
 // NewGitilesRoot returns the root node for a file system.
 func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesOptions) nodefs.Node {
 	r := &gitilesRoot{
-		Node:      newDirNode(),
-		service:   service,
-		nodeCache: newNodeCache(),
-		cache:     c,
-		shaMap:    map[git.Oid]string{},
-		tree:      tree,
-		opts:      options,
-		lazyRepo:  cache.NewLazyRepo(options.CloneURL, c),
+		Node:         newDirNode(),
+		service:      service,
+		nodeCache:    newNodeCache(),
+		cache:        c,
+		shaMap:       map[git.Oid]string{},
+		tree:         tree,
+		opts:         options,
+		lazyRepo:     cache.NewLazyRepo(options.CloneURL, c),
+		fetchingCond: sync.NewCond(&sync.Mutex{}),
+		fetching:     map[git.Oid]bool{},
 	}
 
 	return r
