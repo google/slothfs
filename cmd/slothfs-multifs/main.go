@@ -22,15 +22,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/gitfs/cache"
-	"github.com/google/gitfs/fs"
-	"github.com/google/gitfs/gitiles"
+	"github.com/google/slothfs/cache"
+	"github.com/google/slothfs/fs"
+	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
 func main() {
 	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
-	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "gitfs"), "cache dir")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
 	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
 	flag.Parse()

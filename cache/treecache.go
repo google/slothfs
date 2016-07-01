@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/gitfs/gitiles"
+	"github.com/google/slothfs/gitiles"
 	git "github.com/libgit2/git2go"
 )
 

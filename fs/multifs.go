@@ -19,9 +19,9 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/google/gitfs/cache"
-	"github.com/google/gitfs/gitiles"
-	"github.com/google/gitfs/manifest"
+	"github.com/google/slothfs/cache"
+	"github.com/google/slothfs/gitiles"
+	"github.com/google/slothfs/manifest"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )

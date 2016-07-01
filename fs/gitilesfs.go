@@ -23,8 +23,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/gitfs/cache"
-	"github.com/google/gitfs/gitiles"
+	"github.com/google/slothfs/cache"
+	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	git "github.com/libgit2/git2go"

@@ -19,14 +19,14 @@ for sub in manifest \
 gitiles \
 cache \
 fs \
-cmd/gitfs-expand-manifest \
-cmd/gitfs-multifs \
-cmd/gitfs-manifestfs \
-cmd/gitfs-populate \
-cmd/gitfs-gitilesfs \
-cmd/gitfs-deref-manifest \
+cmd/slothfs-expand-manifest \
+cmd/slothfs-multifs \
+cmd/slothfs-manifestfs \
+cmd/slothfs-populate \
+cmd/slothfs-gitilesfs \
+cmd/slothfs-deref-manifest \
   ; do
-  p=github.com/google/gitfs/${sub}
+  p=github.com/google/slothfs/${sub}
   go clean $p
   go test $p
   go install $p

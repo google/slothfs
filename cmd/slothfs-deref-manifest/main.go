@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // This program creates a manifest file with revisions filled in from
-// a normal repo checkout. This can be used for comparing gitfs and
+// a normal repo checkout. This can be used for comparing slothfs and
 // actual repo checkouts.
 package main
 
@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/gitfs/manifest"
+	"github.com/google/slothfs/manifest"
 	"github.com/libgit2/git2go"
 )
 

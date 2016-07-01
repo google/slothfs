@@ -17,7 +17,7 @@ package fs
 import (
 	"regexp"
 
-	"github.com/google/gitfs/manifest"
+	"github.com/google/slothfs/manifest"
 )
 
 // CloneOption configures for which files we should trigger a git clone.

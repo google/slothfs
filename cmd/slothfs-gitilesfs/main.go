@@ -16,77 +16,60 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/google/gitfs/cache"
-	"github.com/google/gitfs/fs"
-	"github.com/google/gitfs/gitiles"
-	"github.com/google/gitfs/manifest"
+	"github.com/google/slothfs/cache"
+	"github.com/google/slothfs/fs"
+	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
 func main() {
-	manifestPath := flag.String("manifest", "", "expanded manifest file path")
-	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
-	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "gitfs"), "cache dir")
+	url := flag.String("gitiles", "", "URL of gitiles service")
+	branch := flag.String("branch", "master", "branch name")
+	repo := flag.String("repo", "", "repository name")
 	debug := flag.Bool("debug", false, "print debug info")
-	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	flag.Parse()
 
-	if *manifestPath == "" {
-		log.Fatal("must set --manifest")
-	}
 	if *cacheDir == "" {
 		log.Fatal("must set --cache")
 	}
-	if *gitilesURL == "" {
-		log.Fatal("must set --gitiles")
-	}
-
 	if len(flag.Args()) < 1 {
 		log.Fatal("usage: main -gitiles URL -repo REPO [-branch BRANCH] MOUNT-POINT")
 	}
-	mntDir := flag.Arg(0)
 
+	mntDir := flag.Arg(0)
 	cache, err := cache.NewCache(*cacheDir)
 	if err != nil {
 		log.Printf("NewCache: %v", err)
 	}
 
-	service, err := gitiles.NewService(*gitilesURL)
+	service, err := gitiles.NewService(*url)
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}
 
-	mf, err := manifest.ParseFile(*manifestPath)
+	repoService := service.NewRepoService(*repo)
+	project, err := repoService.Get()
+	if err != nil {
+		log.Fatalf("GetProject(%s): %v", *repo, err)
+	}
+
+	tree, err := repoService.GetTree(*branch, "", true)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	opts := fs.ManifestOptions{
-		Manifest: mf,
+	opts := fs.GitilesOptions{
+		Revision: *branch,
+		CloneURL: project.CloneURL,
 	}
 
-	if *config != "" {
-		configContents, err := ioutil.ReadFile(*config)
-		if err != nil {
-			log.Fatal(err)
-		}
-		opts.RepoCloneOption, opts.FileCloneOption, err = fs.ReadConfig(configContents)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	root, err := fs.NewManifestFS(service, cache, opts)
-	if err != nil {
-		log.Fatalf("NewManifestFS: %v", err)
-	}
-
+	root := fs.NewGitilesRoot(cache, tree, repoService, opts)
 	server, _, err := nodefs.MountRoot(mntDir, root, &nodefs.Options{
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,

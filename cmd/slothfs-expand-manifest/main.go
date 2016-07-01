@@ -20,8 +20,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/google/gitfs/gitiles"
-	"github.com/google/gitfs/manifest"
+	"github.com/google/slothfs/gitiles"
+	"github.com/google/slothfs/manifest"
 )
 
 func main() {

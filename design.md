@@ -152,7 +152,7 @@ Implementation steps
 
 * FUSE daemon:
    * Add support for serving trees based on Gitiles JSON data
-   * Add support for lazily cloning .git repositories in gitfs
+   * Add support for lazily cloning .git repositories
    * Add support for chtimes
    * Add support for sharing blobs
    * Add support for a CAS

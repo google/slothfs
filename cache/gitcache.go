@@ -42,7 +42,7 @@ type gitCache struct {
 func newGitCache(baseDir string) (*gitCache, error) {
 	c := gitCache{
 		dir:    filepath.Join(baseDir),
-		logDir: filepath.Join(baseDir, "gitfs-logs"),
+		logDir: filepath.Join(baseDir, "slothfs-logs"),
 	}
 	if err := os.MkdirAll(c.logDir, 0700); err != nil {
 		return nil, err

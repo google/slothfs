@@ -319,7 +319,7 @@ func populateCheckout(ro, rw string) error {
 }
 
 func main() {
-	mount := flag.String("ro", "", "path to gitfs-multifs mount.")
+	mount := flag.String("ro", "", "path to slothfs-multifs mount.")
 	flag.Parse()
 
 	dir := "."

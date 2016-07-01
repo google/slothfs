@@ -1,6 +1,6 @@
 
-This is a FUSE filesystem that provides light-weight, read-only checkouts of Git
-repositories. It is intended for use with Android.
+This is a FUSE filesystem that provides light-weight, lazily downloaded,
+read-only checkouts of Git repositories. It is intended for use with Android.
 
 
 How to use
@@ -8,28 +8,28 @@ How to use
 
 To start the file system:
 
-    go install github.com/google/gitfs/cmd/gitfs-multifs
+    go install github.com/google/slothfs/cmd/slothfs-multifs
     mkdir /tmp/mnt
-    gitfs-multifs -gitiles https://android.googlesource.com/  /tmp/mnt &
+    slothfs-multifs -gitiles https://android.googlesource.com/  /tmp/mnt &
 
 To create a workspace "ws" corresponding to the latest manifest version
 
-    go install github.com/google/gitfs/cmd/gitfs-expand-manifest
-    gitfs-expand-manifest --gitiles https://android.googlesource.com/ \
+    go install github.com/google/slothfs/cmd/slothfs-expand-manifest
+    slothfs-expand-manifest --gitiles https://android.googlesource.com/ \
        > /tmp/m.xml &&
     ln -s /tmp/m.xml /tmp/mnt/config/ws
 
 To populate a checkout
 
-    go install github.com/google/gitfs/cmd/gitfs-populate
+    go install github.com/google/slothfs/cmd/slothfs-populate
     mkdir -p checkout/frameworks
     cd checkout/frameworks
     git clone https://android.googlesource.com/platform/frameworks/base
     cd ../
-    gitfs-populate -ro /tmp/mnt/ws .
+    slothfs-populate -ro /tmp/mnt/ws .
 
 The filesystem daemon uses an on-disk cache, which by default is stored under
-~/.cache/gitfs
+~/.cache/slothfs
 
 
 Configuring
