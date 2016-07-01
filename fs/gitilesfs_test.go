@@ -57,7 +57,7 @@ func init() {
 	}
 }
 
-const testManifest = `<?xml version="1.0" encoding="UTF-8"?>
+const testManifestXML = `<?xml version="1.0" encoding="UTF-8"?>
 <manifest>
   <remote  name="aosp"
            fetch=".."
@@ -71,8 +71,18 @@ const testManifest = `<?xml version="1.0" encoding="UTF-8"?>
   </project>
 </manifest>`
 
+var testManifest *manifest.Manifest
+
+func init() {
+	var err error
+	testManifest, err = manifest.Parse([]byte(testManifestXML))
+	if err != nil {
+		log.Panicf("manifest.Parse: %v", err)
+	}
+}
+
 var testGitiles = map[string]string{
-	"/platform/manifest/+show/master/default.xml?format=TEXT": testManifest,
+	"/platform/manifest/+show/master/default.xml?format=TEXT": testManifestXML,
 	"/platform/build/kati/+/master?format=JSON": `)]}'
 {
   "commit": "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
@@ -324,20 +334,10 @@ func TestGitilesFS(t *testing.T) {
 	}
 }
 
-func TestManifestFSCloneOption(t *testing.T) {
+func newManifestTestFixture(mf *manifest.Manifest) (*testFixture, error) {
 	fix, err := newTestFixture()
 	if err != nil {
-		t.Fatal("newTestFixture", err)
-	}
-	defer fix.cleanup()
-
-	mf, err := manifest.Parse([]byte(testManifest))
-	if err != nil {
-		t.Fatal("manifest.Parse:", err)
-	}
-
-	for i := range mf.Project {
-		mf.Project[i].CloneDepth = "1"
+		return nil, err
 	}
 
 	opts := ManifestOptions{
@@ -346,12 +346,27 @@ func TestManifestFSCloneOption(t *testing.T) {
 
 	fs, err := NewManifestFS(fix.service, fix.cache, opts)
 	if err != nil {
-		t.Fatalf("NewManifestFS: %v", err)
+		return nil, err
 	}
 	if err := fix.mount(fs); err != nil {
-		log.Fatalf("MountFileSystem: %v", err)
+		return nil, err
 	}
 
+	return fix, nil
+}
+
+func TestManifestFSCloneOption(t *testing.T) {
+	mf := *testManifest
+	for i := range mf.Project {
+		mf.Project[i].CloneDepth = "1"
+	}
+
+	fix, err := newManifestTestFixture(&mf)
+	if err != nil {
+		t.Fatalf("newManifestTestFixture: %v", err)
+	}
+
+	fs := fix.root.(*manifestFSRoot)
 	ch := fs.Inode()
 	for _, n := range []string{"build", "kati", "AUTHORS"} {
 		newCh := ch.GetChild(n)
@@ -372,28 +387,11 @@ func TestManifestFSCloneOption(t *testing.T) {
 }
 
 func TestManifestFS(t *testing.T) {
-	fix, err := newTestFixture()
+	fix, err := newManifestTestFixture(testManifest)
 	if err != nil {
 		t.Fatal("newTestFixture", err)
 	}
 	defer fix.cleanup()
-
-	mf, err := manifest.Parse([]byte(testManifest))
-	if err != nil {
-		t.Fatal("manifest.Parse:", err)
-	}
-
-	opts := ManifestOptions{
-		Manifest: mf,
-	}
-
-	fs, err := NewManifestFS(fix.service, fix.cache, opts)
-	if err != nil {
-		t.Fatalf("NewManifestFS: %v", err)
-	}
-	if err := fix.mount(fs); err != nil {
-		log.Fatalf("MountFileSystem: %v", err)
-	}
 
 	fn := filepath.Join(fix.mntDir, "build", "kati", "AUTHORS")
 	fi, err := os.Lstat(fn)
@@ -435,28 +433,11 @@ func TestManifestFS(t *testing.T) {
 }
 
 func TestManifestFSXMLFile(t *testing.T) {
-	fix, err := newTestFixture()
+	fix, err := newManifestTestFixture(testManifest)
 	if err != nil {
 		t.Fatal("newTestFixture", err)
 	}
 	defer fix.cleanup()
-
-	mf, err := manifest.Parse([]byte(testManifest))
-	if err != nil {
-		t.Fatal("manifest.Parse:", err)
-	}
-
-	opts := ManifestOptions{
-		Manifest: mf,
-	}
-
-	fs, err := NewManifestFS(fix.service, fix.cache, opts)
-	if err != nil {
-		t.Fatalf("NewManifestFS: %v", err)
-	}
-	if err := fix.mount(fs); err != nil {
-		t.Fatalf("mount: %v", err)
-	}
 
 	xmlPath := filepath.Join(fix.mntDir, "manifest.xml")
 	fuseMF, err := manifest.ParseFile(xmlPath)
@@ -464,8 +445,8 @@ func TestManifestFSXMLFile(t *testing.T) {
 		t.Fatalf("ParseFile(%s): %v", xmlPath, err)
 	}
 
-	if !reflect.DeepEqual(fuseMF, mf) {
-		t.Errorf("read back manifest %v, want %v", fuseMF, mf)
+	if !reflect.DeepEqual(fuseMF, testManifest) {
+		t.Errorf("read back manifest %v, want %v", fuseMF, testManifest)
 	}
 }
 
@@ -476,6 +457,7 @@ type testFixture struct {
 	cache    *cache.Cache
 	listener net.Listener
 	service  *gitiles.Service
+	root     nodefs.Node
 }
 
 func (f *testFixture) cleanup() {
@@ -531,6 +513,8 @@ func (f *testFixture) mount(root nodefs.Node) error {
 		f.server.SetDebug(true)
 	}
 	go f.server.Serve()
+
+	f.root = root
 	return nil
 }
 
@@ -542,7 +526,7 @@ func TestMultiFS(t *testing.T) {
 	defer fix.cleanup()
 
 	xmlFile := filepath.Join(fix.dir, "manifest.xml")
-	if err := ioutil.WriteFile(xmlFile, []byte(testManifest), 0644); err != nil {
+	if err := ioutil.WriteFile(xmlFile, []byte(testManifestXML), 0644); err != nil {
 		t.Errorf("WriteFile(%s): %v", xmlFile, err)
 	}
 
