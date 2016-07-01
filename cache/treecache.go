@@ -114,7 +114,9 @@ func GetTree(repo *git.Repository, id *git.Oid) (*gitiles.Tree, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer peeledObj.Free()
+	if peeledObj != obj {
+		defer peeledObj.Free()
+	}
 
 	asTree, err := peeledObj.AsTree()
 	if err != nil {

@@ -47,8 +47,9 @@ func NewLazyRepo(url string, cache *Cache) *LazyRepo {
 }
 
 // Repository returns a git.Repository for this repo, or nil if it
-// wasn't loaded.  This method is safe for concurrent use from
-// multiple goroutines.
+// wasn't loaded. This method is safe for concurrent use from
+// multiple goroutines. The return value must not be Free'd since it
+// is persisted inside LazyRepo.
 func (r *LazyRepo) Repository() *git.Repository {
 	r.repoMu.Lock()
 	defer r.repoMu.Unlock()

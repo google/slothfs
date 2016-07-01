@@ -181,9 +181,6 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 		if clone && repo == nil {
 			r.lazyRepo.Clone()
 		}
-		if repo != nil {
-			defer repo.Free()
-		}
 
 		var content []byte
 		if repo != nil {
