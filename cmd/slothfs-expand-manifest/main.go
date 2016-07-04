@@ -34,7 +34,13 @@ func main() {
 		log.Fatal("must set --gitiles")
 	}
 
-	service, err := gitiles.NewService(*gitilesURL)
+	// SustainedQPS is a little high, but since this is a one-shot
+	// program let's try to get away with it.
+	service, err := gitiles.NewService(*gitilesURL,
+		gitiles.Options{
+			BurstQPS:     10,
+			SustainedQPS: 5,
+		})
 	if err != nil {
 		log.Fatal(err)
 	}

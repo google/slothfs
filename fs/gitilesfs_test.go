@@ -576,7 +576,8 @@ func newTestFixture() (*testFixture, error) {
 	}
 
 	fixture.service, err = gitiles.NewService(
-		fmt.Sprintf("http://%s", fixture.testServer.listener.Addr().String()))
+		fmt.Sprintf("http://%s", fixture.testServer.listener.Addr().String()),
+		gitiles.Options{})
 	if err != nil {
 		return nil, err
 	}

@@ -48,7 +48,7 @@ func main() {
 		log.Printf("NewCache: %v", err)
 	}
 
-	service, err := gitiles.NewService(*url)
+	service, err := gitiles.NewService(*url, gitiles.Options{})
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}

@@ -25,12 +25,15 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+
+	"golang.org/x/net/context"
+	"golang.org/x/time/rate"
 )
 
 // Service is a client for the Gitiles JSON interface.
 type Service struct {
-	throttle chan struct{}
-	addr     url.URL
+	limiter *rate.Limiter
+	addr    url.URL
 }
 
 // Addr returns the address of the gitiles service.
@@ -38,22 +41,39 @@ func (s *Service) Addr() string {
 	return s.addr.String()
 }
 
+// Options specifies how much load we can put on remote Gitiles servers.
+type Options struct {
+	BurstQPS     int
+	SustainedQPS float64
+}
+
 // NewService returns a new Gitiles JSON client.
-func NewService(addr string) (*Service, error) {
+func NewService(addr string, opts Options) (*Service, error) {
+	if opts.BurstQPS == 0 {
+		opts.BurstQPS = 4
+	}
+	if opts.SustainedQPS == 0.0 {
+		opts.SustainedQPS = 0.5
+	}
+
 	url, err := url.Parse(addr)
 	if err != nil {
 		return nil, err
 	}
 	return &Service{
-		throttle: make(chan struct{}, 12),
-		addr:     *url,
+		limiter: rate.NewLimiter(rate.Limit(opts.SustainedQPS), opts.BurstQPS),
+		addr:    *url,
 	}, nil
 }
 
 func (s *Service) get(u url.URL) ([]byte, error) {
-	s.throttle <- struct{}{}
+	ctx := context.Background()
+
+	if err := s.limiter.Wait(ctx); err != nil {
+		return nil, err
+	}
 	resp, err := http.Get(u.String())
-	<-s.throttle
+
 	if err != nil {
 		return nil, err
 	}
