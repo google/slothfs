@@ -428,6 +428,7 @@ func TestManifestFSCloneOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newManifestTestFixture: %v", err)
 	}
+	defer fix.cleanup()
 
 	fs := fix.root.(*manifestFSRoot)
 	ch := fs.Inode()
