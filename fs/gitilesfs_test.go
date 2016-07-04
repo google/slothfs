@@ -565,7 +565,7 @@ func newTestFixture() (*testFixture, error) {
 
 	fixture := &testFixture{dir: d}
 
-	fixture.cache, err = cache.NewCache(filepath.Join(d, "/cache"))
+	fixture.cache, err = cache.NewCache(filepath.Join(d, "/cache"), cache.Options{})
 	if err != nil {
 		return nil, err
 	}

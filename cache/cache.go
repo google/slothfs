@@ -19,6 +19,7 @@ package cache
 import (
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Cache combines a blob, tree and git repo cache.
@@ -28,7 +29,18 @@ type Cache struct {
 	Blob *CAS
 }
 
-func NewCache(d string) (*Cache, error) {
+// Options defines configurable options for the different caches.
+type Options struct {
+	// FetchFrequency controls how often we run git fetch on the
+	// locally cached git repositories.
+	FetchFrequency time.Duration
+}
+
+func NewCache(d string, opts Options) (*Cache, error) {
+	if opts.FetchFrequency == 0 {
+		opts.FetchFrequency = 12 * time.Hour
+	}
+
 	d, err := filepath.Abs(d)
 	if err != nil {
 		return nil, err
@@ -37,7 +49,7 @@ func NewCache(d string) (*Cache, error) {
 		return nil, err
 	}
 
-	g, err := newGitCache(filepath.Join(d, "git"))
+	g, err := newGitCache(filepath.Join(d, "git"), opts)
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,7 @@ func main() {
 	}
 
 	mntDir := flag.Arg(0)
-	cache, err := cache.NewCache(*cacheDir)
+	cache, err := cache.NewCache(*cacheDir, cache.Options{})
 	if err != nil {
 		log.Printf("NewCache: %v", err)
 	}

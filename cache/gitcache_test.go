@@ -34,7 +34,7 @@ func TestGitCache(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	cache, err := newGitCache(dir)
+	cache, err := newGitCache(dir, Options{})
 	if err != nil {
 		t.Fatalf("newGitCache(%s): %v", dir, err)
 	}

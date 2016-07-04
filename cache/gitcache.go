@@ -39,7 +39,7 @@ type gitCache struct {
 }
 
 // newGitCache constructs a gitCache object.
-func newGitCache(baseDir string) (*gitCache, error) {
+func newGitCache(baseDir string, opts Options) (*gitCache, error) {
 	c := gitCache{
 		dir:    filepath.Join(baseDir),
 		logDir: filepath.Join(baseDir, "slothfs-logs"),
@@ -50,7 +50,21 @@ func newGitCache(baseDir string) (*gitCache, error) {
 	if err := os.MkdirAll(c.dir, 0700); err != nil {
 		return nil, err
 	}
+	if opts.FetchFrequency > 0 {
+		go c.recurringFetch(opts.FetchFrequency)
+	}
+
 	return &c, nil
+}
+
+func (c *gitCache) recurringFetch(freq time.Duration) {
+	ticker := time.NewTicker(freq)
+	for {
+		if err := c.FetchAll(); err != nil {
+			log.Printf("FetchAll: %v", err)
+		}
+		<-ticker.C
+	}
 }
 
 // logfile returns a logfile open for writing with a unique name.
@@ -61,13 +75,31 @@ func (c *gitCache) logfile() (*os.File, error) {
 }
 
 // Fetch updates the local clone of the given repository.
-func (c *gitCache) Fetch(url string) error {
-	path, err := c.gitPath(url)
-	if err != nil {
+func (c *gitCache) Fetch(dir string) error {
+	if err := c.runGit(c.dir, "--git-dir="+dir, "fetch", "origin"); err != nil {
 		return err
 	}
-	if err := c.runGit(c.dir, "--git-dir="+path, "fetch", "origin"); err != nil {
+
+	return nil
+}
+
+// FetchAll finds all known repos and runs git-fetch on them.
+func (c *gitCache) FetchAll() error {
+	var dirs []string
+	if err := filepath.Walk(c.dir, func(n string, fi os.FileInfo, err error) error {
+		if fi.IsDir() && strings.HasSuffix(n, ".git") {
+			dirs = append(dirs, n)
+			return filepath.SkipDir
+		}
+		return nil
+	}); err != nil {
 		return err
+	}
+
+	for _, d := range dirs {
+		if err := c.Fetch(d); err != nil {
+			return fmt.Errorf("fetch %s: %v", d, err)
+		}
 	}
 
 	return nil
