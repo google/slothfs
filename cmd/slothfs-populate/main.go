@@ -281,6 +281,7 @@ func changedFiles(oldDir, newDir string) ([]string, error) {
 
 // populateCheckout updates a RW dir with new symlinks to the given RO dir.
 func populateCheckout(ro, rw string) error {
+	ro = filepath.Clean(ro)
 	wsName, err := clearLinks(filepath.Dir(ro), rw)
 	if err != nil {
 		log.Fatal(err)
