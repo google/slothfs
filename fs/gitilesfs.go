@@ -190,7 +190,7 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 
 	f, err := r.fetchFile(id, clone)
 	if err != nil {
-		log.Printf("fetchFile(%s): %v", id, err)
+		log.Printf("fetchFile(%s): %v", id.String(), err)
 		return nil, syscall.ESPIPE
 	}
 
