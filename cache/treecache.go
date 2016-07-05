@@ -79,7 +79,7 @@ func (c *TreeCache) add(id *git.Oid, tree *gitiles.Tree) error {
 		return err
 	}
 
-	content, err := json.Marshal(tree)
+	content, err := json.MarshalIndent(tree, "", " ")
 	if err != nil {
 		return err
 	}
