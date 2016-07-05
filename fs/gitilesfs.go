@@ -105,6 +105,10 @@ type gitilesNode struct {
 	mtime   time.Time
 }
 
+func (n *gitilesNode) Deletable() bool {
+	return false
+}
+
 func (n *gitilesNode) Utimens(file nodefs.File, atime *time.Time, mtime *time.Time, context *fuse.Context) (code fuse.Status) {
 	if mtime != nil {
 		n.mtimeMu.Lock()
@@ -330,6 +334,10 @@ func (n *dirNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Contex
 	t := time.Unix(1, 0)
 	out.SetTimes(nil, &t, nil)
 	return fuse.OK
+}
+
+func (n *dirNode) Deletable() bool {
+	return false
 }
 
 func newDirNode() nodefs.Node {
