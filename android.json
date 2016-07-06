@@ -4,11 +4,15 @@
     "Clone": false
   },
   {
-    "File": ".*mk$",
+    "File": ".*\\.mk$",
     "Clone": false
   },
   {
-    "File": ".*bp$",
+    "File": ".*\\.bp$",
     "Clone": false
-  }
+  },
+  {
+    "File": ".*\\.apk$",
+    "Clone": false,
+  },
 ]
