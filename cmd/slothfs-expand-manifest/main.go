@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/google/slothfs/cookie"
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
 
@@ -30,33 +31,46 @@ func main() {
 	gitilesURL := flag.String("gitiles", "", "URL for gitiles")
 	branch := flag.String("branch", "master", "branch to use for manifest")
 	repo := flag.String("repo", "platform/manifest", "manifest repository")
+	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
+	agent := flag.String("agent", "slothfs-expand", "gitiles User-Agent string to use.")
 	flag.Parse()
 
 	if *gitilesURL == "" {
 		log.Fatal("must set --gitiles")
 	}
 
+	opts := gitiles.Options{
+		UserAgent: *agent,
+	}
+	if *cookieJarPath != "" {
+		var err error
+		opts.CookieJar, err = cookie.NewJar(*cookieJarPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	// SustainedQPS is a little high, but since this is a one-shot
 	// program let's try to get away with it.
-	service, err := gitiles.NewService(*gitilesURL, gitiles.Options{})
+	service, err := gitiles.NewService(*gitilesURL, opts)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("NewService: %v", err)
 	}
 
 	mf, err := fetchManifest(service, *repo, *branch)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("fetchManifest: %v", err)
 	}
 
 	mf.Filter()
 
 	if err := derefManifest(service, *repo, mf); err != nil {
-		log.Fatal(err)
+		log.Fatalf("derefManifest: %v", err)
 	}
 
 	xml, err := mf.MarshalXML()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("MarshalXML: %v", err)
 	}
 
 	os.Stdout.Write(xml)
@@ -79,7 +93,6 @@ func fetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Man
 }
 
 func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.Manifest) error {
-
 	branchSet := map[string]struct{}{}
 
 	var todoProjects []int

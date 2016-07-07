@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/google/slothfs/cache"
+	"github.com/google/slothfs/cookie"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -33,6 +34,8 @@ func main() {
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
 	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
+	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
+	agent := flag.String("agent", "slothfs-multifs", "gitiles User-Agent string to use.")
 	flag.Parse()
 
 	if *cacheDir == "" {
@@ -53,7 +56,18 @@ func main() {
 		log.Printf("NewCache: %v", err)
 	}
 
-	service, err := gitiles.NewService(*gitilesURL, gitiles.Options{})
+	gitilesOpts := gitiles.Options{
+		UserAgent: *agent,
+	}
+	if *cookieJarPath != "" {
+		var err error
+		gitilesOpts.CookieJar, err = cookie.NewJar(*cookieJarPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	service, err := gitiles.NewService(*gitilesURL, gitilesOpts)
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}

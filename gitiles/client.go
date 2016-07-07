@@ -34,6 +34,8 @@ import (
 type Service struct {
 	limiter *rate.Limiter
 	addr    url.URL
+	client  http.Client
+	agent   string
 }
 
 // Addr returns the address of the gitiles service.
@@ -45,6 +47,12 @@ func (s *Service) Addr() string {
 type Options struct {
 	BurstQPS     int
 	SustainedQPS float64
+
+	// A writable cookie jar for storing (among others) authentication cookies.
+	CookieJar http.CookieJar
+
+	// UserAgent defines how we present ourself to the server.
+	UserAgent string
 }
 
 // NewService returns a new Gitiles JSON client.
@@ -60,10 +68,18 @@ func NewService(addr string, opts Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
+	s := &Service{
 		limiter: rate.NewLimiter(rate.Limit(opts.SustainedQPS), opts.BurstQPS),
 		addr:    *url,
-	}, nil
+		agent:   opts.UserAgent,
+	}
+
+	s.client.Jar = opts.CookieJar
+	s.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		req.Header.Set("User-Agent", s.agent)
+		return nil
+	}
+	return s, nil
 }
 
 func (s *Service) get(u *url.URL) ([]byte, error) {
@@ -72,7 +88,12 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 	if err := s.limiter.Wait(ctx); err != nil {
 		return nil, err
 	}
-	resp, err := http.Get(u.String())
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("User-Agent", s.agent)
+	resp, err := s.client.Do(req)
 
 	if err != nil {
 		return nil, err
@@ -80,6 +101,12 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("%s: %s", u.String(), resp.Status)
+	}
+	if got := resp.Request.URL.String(); got != u.String() {
+		// We accept redirects, but only for authentication.
+		// If we get a 200 from a different page than we
+		// requested, it's probably some sort of login page.
+		return nil, fmt.Errorf("got URL %s, want %s", got, u.String())
 	}
 
 	c, err := ioutil.ReadAll(resp.Body)
