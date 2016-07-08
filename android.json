@@ -13,6 +13,6 @@
   },
   {
     "File": ".*\\.apk$",
-    "Clone": false,
-  },
+    "Clone": false
+  }
 ]
