@@ -61,42 +61,52 @@ func TestConstruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := newRepoTree(dir)
-	construct(dir, "", parent)
-
 	songT := &repoTree{
 		children: map[string]*repoTree{},
-		entries:  []string{"song.mp3"},
+		entries: map[string]*fileInfo{
+			"song.mp3": &fileInfo{isRegular: true, size: 1},
+		},
 	}
 	coreT := &repoTree{
 		children: map[string]*repoTree{"song": songT},
-		entries: []string{"subdir/core.h",
-			"top",
+		entries: map[string]*fileInfo{
+			"subdir/core.h": &fileInfo{isRegular: true, size: 1},
+			"top":           &fileInfo{isRegular: true, size: 1},
 		},
 	}
 	topT := &repoTree{
 		children: map[string]*repoTree{
 			"build/core": coreT,
 		},
-		entries: []string{
-			"build/subfile",
-			"toplevel",
+		entries: map[string]*fileInfo{
+			"build/subfile": &fileInfo{isRegular: true, size: 1},
+			"toplevel": &fileInfo{
+				isRegular: true, size: 1},
 		},
 	}
 
-	if !reflect.DeepEqual(topT, parent) {
-		t.Errorf("got %#v want %#v", parent, topT)
+	got, err := newRepoTree(dir)
+	if err != nil {
+		t.Fatalf("newRepoTree: %v", err)
 	}
 
-	all := topT.allChildren()
-	want := map[string]*repoTree{
-		"":                topT,
-		"build/core":      coreT,
-		"build/core/song": songT,
+	// Clear unpredictable data.
+	gotCh := got.allChildren()
+	for _, t := range gotCh {
+		for _, e := range t.entries {
+			e.inode = 0
+		}
 	}
 
-	if !reflect.DeepEqual(all, want) {
-		t.Errorf("got %#v want %#v", all, want)
+	wantCh := topT.allChildren()
+	for k, v := range wantCh {
+		if !reflect.DeepEqual(v, gotCh[k]) {
+			t.Fatalf("subrepo %q: got %#v want %#v", v, gotCh[k])
+		}
+	}
+
+	if !reflect.DeepEqual(got, topT) {
+		t.Errorf("got %#v want %#v", got, topT)
 	}
 }
 
@@ -164,29 +174,54 @@ func TestPopulate(t *testing.T) {
 func TestChangedFiles(t *testing.T) {
 	dir, err := createFSTree([]string{
 		"r1/manifest.xml",
-		"r1/a",
-		"r1/b",
+		"r1/same",
+		"r1/checksum",
+		"r1/size",
 		"r2/manifest.xml",
-		"r2/a",
-		"r2/b",
-		"r2/c",
+		"r2/same",
+		"r2/checksum",
+		"r2/newfile",
+		"r2/size",
 	})
 	if err != nil {
 		t.Fatalf("createFSTree: %v", err)
 	}
 
-	ck2 := "3f75526aa8f01eea5d76cee10722195dc73676df"
-	for _, changed := range []string{"r2/b", "r2/manifest.xml"} {
-		if err := syscall.Setxattr(filepath.Join(dir, changed), attr, []byte(ck2), 0); err != nil {
-			t.Fatalf("Setxattr: %v", err)
-		}
+	if err := os.Symlink("same", filepath.Join(dir, "r2/symlink")); err != nil {
+		t.Fatalf("symlink: %v", err)
 	}
 
-	got, err := changedFiles(filepath.Join(dir, "r1"), filepath.Join(dir, "r2"))
+	// same size, different checksum.
+	ck2 := "3f75526aa8f01eea5d76cee10722195dc73676df"
+	if err := syscall.Setxattr(filepath.Join(dir, "r2/checksum"), attr, []byte(ck2), 0); err != nil {
+		t.Fatalf("Setxattr: %v", err)
+	}
+
+	// different size.
+	if err := ioutil.WriteFile(filepath.Join(dir, "r2/size"), []byte("changed"), 0644); err != nil {
+		t.Fatalf("WriteFile(%s/r2/size): %v", dir, err)
+	}
+
+	// Manifest should be ignored.
+	if err := ioutil.WriteFile(filepath.Join(dir, "r2/manifest.xml"), []byte("changed"), 0644); err != nil {
+		t.Fatalf("WriteFile(%s/r2/manifest): %v", dir, err)
+	}
+
+	r2tree, err := newRepoTree(filepath.Join(dir, "r2"))
+	if err != nil {
+		t.Fatalf("newRepoTree: %v", err)
+	}
+	r1tree, err := newRepoTree(filepath.Join(dir, "r1"))
+	if err != nil {
+		t.Fatalf("newRepoTree: %v", err)
+	}
+
+	oldRoot := filepath.Join(dir, "r1")
+	got, err := changedFiles(oldRoot, r1tree.allFiles(), filepath.Join(dir, "r2"), r2tree.allFiles())
 	if err != nil {
 		t.Fatalf("changedFiles: %v", err)
 	}
-	if want := []string{"b", "c"}; !reflect.DeepEqual(want, got) {
+	if want := []string{"checksum", "newfile", "size"}; !reflect.DeepEqual(want, got) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }

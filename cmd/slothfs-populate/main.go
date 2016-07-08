@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -25,20 +26,37 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	git "github.com/libgit2/git2go"
 )
+
+type fileInfo struct {
+	isRegular bool
+	size      int64
+	inode     uint64
+}
 
 type repoTree struct {
 	// repositories under this repository
 	children map[string]*repoTree
 
 	// files in this repository.
-	entries []string
+	entries map[string]*fileInfo
 }
 
-func newRepoTree(localRoot string) *repoTree {
+func makeRepoTree() *repoTree {
 	return &repoTree{
-		children: make(map[string]*repoTree),
+		children: map[string]*repoTree{},
+		entries:  map[string]*fileInfo{},
 	}
+}
+
+func newRepoTree(dir string) (*repoTree, error) {
+	t := makeRepoTree()
+	if err := t.fill(dir, ""); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // allChildren returns all the repositories (including the receiver)
@@ -53,41 +71,78 @@ func (t *repoTree) allChildren() map[string]*repoTree {
 	return r
 }
 
+// allFiles returns all the files below this repoTree.
+func (t *repoTree) allFiles() map[string]*fileInfo {
+	r := map[string]*fileInfo{}
+	for nm, info := range t.entries {
+		r[nm] = info
+	}
+	for nm, ch := range t.children {
+		for sub, subCh := range ch.allFiles() {
+			r[filepath.Join(nm, sub)] = subCh
+		}
+	}
+	return r
+}
+
+func isRepoDir(path string) bool {
+	if stat, err := os.Stat(filepath.Join(path, ".git")); err == nil && stat.IsDir() {
+		return true
+	} else if stat, err := os.Stat(filepath.Join(path, ".gitid")); err == nil && !stat.IsDir() {
+		return true
+	}
+	return false
+}
+
 // construct fills `parent` looking through `dir` subdir of `repoRoot`.
-func construct(repoRoot, dir string, parent *repoTree) error {
-	isRepo := false
-	localRoot := filepath.Join(repoRoot, dir)
-	if stat, err := os.Stat(filepath.Join(localRoot, ".git")); err == nil && stat.IsDir() {
-		isRepo = true
-	} else if stat, err := os.Stat(filepath.Join(localRoot, ".gitid")); err == nil && !stat.IsDir() {
-		isRepo = true
-	}
-
-	if isRepo {
-		sub := newRepoTree(localRoot)
-		parent.children[dir] = sub
-		parent = sub
-
-		repoRoot = localRoot
-		dir = ""
-	}
-
-	entries, err := ioutil.ReadDir(localRoot)
+func (parent *repoTree) fill(repoRoot, dir string) error {
+	entries, err := ioutil.ReadDir(filepath.Join(repoRoot, dir))
 	if err != nil {
 		return err
 	}
+
+	todo := map[string]*repoTree{}
 	for _, e := range entries {
 		if (e.IsDir() && e.Name() == ".git") || (!e.IsDir() && e.Name() == ".gitid") {
+			continue
+		}
+		if e.IsDir() && e.Name() == "out" && dir == "" {
+			// Ignore the build output directory.
 			continue
 		}
 
 		subName := filepath.Join(dir, e.Name())
 		if e.IsDir() {
-			construct(repoRoot, subName, parent)
+			if newRoot := filepath.Join(repoRoot, subName); isRepoDir(newRoot) {
+				ch := makeRepoTree()
+				parent.children[subName] = ch
+				todo[newRoot] = ch
+			} else {
+				parent.fill(repoRoot, subName)
+			}
 		} else {
-			parent.entries = append(parent.entries, subName)
+			parent.entries[subName] = &fileInfo{
+				isRegular: e.Mode()&os.ModeType == 0,
+				size:      e.Size(),
+				inode:     e.Sys().(*syscall.Stat_t).Ino,
+			}
 		}
 	}
+
+	errs := make(chan error, len(todo))
+	for newRoot, ch := range todo {
+		go func(r string, t *repoTree) {
+			errs <- t.fill(r, "")
+		}(newRoot, ch)
+	}
+
+	for range todo {
+		err := <-errs
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -98,7 +153,7 @@ func symlinkRepo(name string, child *repoTree, roRoot, rwRoot string) error {
 		return nil
 	}
 
-	for _, e := range child.entries {
+	for e := range child.entries {
 		dest := filepath.Join(rwRoot, name, e)
 
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
@@ -220,61 +275,69 @@ func clearLinks(mount, dir string) (string, error) {
 	return prefix, nil
 }
 
-func getSHA1s(dir string) (map[string]string, error) {
-	attr := "user.gitsha1"
+const attrName = "user.gitsha1"
 
-	shamap := map[string]string{}
-
-	data := make([]byte, 1024)
-
-	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
-		if n == filepath.Join(dir, "manifest.xml") {
-			return nil
-		}
-		if fi.Mode()&os.ModeType != 0 {
-			return nil
-		}
-		if filepath.Base(n) == ".gitid" {
-			return nil
-		}
-
-		sz, err := syscall.Getxattr(n, attr, data)
-		if err != nil {
-			return fmt.Errorf("Getxattr(%s, %s): %v", n, attr, err)
-		}
-		rel, err := filepath.Rel(dir, n)
-		if err != nil {
-			return err
-		}
-		shamap[rel] = string(data[:sz])
-		return nil
-	}); err != nil {
-		return nil, err
+func getSHA1(fn string) (*git.Oid, error) {
+	var data [40]byte
+	sz, err := syscall.Getxattr(fn, attrName, data[:])
+	if err != nil {
+		return nil, fmt.Errorf("Getxattr(%s, %s): %v", fn, attrName, err)
 	}
 
-	return shamap, nil
+	oid, err := git.NewOid(string(data[:sz]))
+	if err != nil {
+		return nil, err
+	}
+	return oid, nil
 }
 
 // Returns the filenames (as relative paths) in newDir that have
 // changed relative to the files in oldDir.
-func changedFiles(oldDir, newDir string) ([]string, error) {
-	// TODO(hanwen): could be parallel.
-	oldSHA1s, err := getSHA1s(oldDir)
-	if err != nil {
-		return nil, err
-	}
-	newSHA1s, err := getSHA1s(newDir)
-	if err != nil {
-		return nil, err
-	}
-
+func changedFiles(oldDir string, oldInfos map[string]*fileInfo,
+	newDir string, newInfos map[string]*fileInfo) ([]string, error) {
 	var changed []string
-	for k, v := range newSHA1s {
-		old, ok := oldSHA1s[k]
-		if !ok || old != v {
-			changed = append(changed, k)
+	for path, info := range newInfos {
+		if path == "manifest.xml" {
+			continue
+		}
+
+		if !info.isRegular {
+			// TODO(hanwen): this is incorrect. If a file
+			// changes from a blob to a symlink, we should
+			// deref the symlink and check if the blob has
+			// changed.
+			continue
+		}
+
+		old, ok := oldInfos[path]
+		if !ok {
+			changed = append(changed, path)
+			continue
+		}
+
+		if old.inode == info.inode {
+			continue
+		}
+
+		if old.size != info.size {
+			changed = append(changed, path)
+			continue
+		}
+
+		oldSHA1, err := getSHA1(filepath.Join(oldDir, path))
+		if err != nil {
+			return nil, err
+		}
+		newSHA1, err := getSHA1(filepath.Join(newDir, path))
+		if err != nil {
+			return nil, err
+		}
+
+		if bytes.Compare(oldSHA1[:], newSHA1[:]) != 0 {
+			changed = append(changed, path)
 		}
 	}
+
 	sort.Strings(changed)
 	return changed, nil
 }
@@ -284,34 +347,67 @@ func populateCheckout(ro, rw string) error {
 	ro = filepath.Clean(ro)
 	wsName, err := clearLinks(filepath.Dir(ro), rw)
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	rwTree := newRepoTree(rw)
-	if err := construct(rw, "", rwTree); err != nil {
 		return err
 	}
+	oldRoot := filepath.Join(filepath.Dir(ro), wsName)
 
-	roTree := newRepoTree(ro)
-	if err := construct(ro, "", roTree); err != nil {
-		return err
+	// Do the file system traversals in parallel.
+	errs := make(chan error, 3)
+	var rwTree, roTree *repoTree
+	var oldInfos map[string]*fileInfo
+
+	if wsName != "" {
+		go func() {
+			t, err := newRepoTree(oldRoot)
+			oldInfos = t.allFiles()
+			errs <- err
+		}()
+	} else {
+		oldInfos = map[string]*fileInfo{}
+		errs <- nil
+	}
+
+	go func() {
+		t, err := newRepoTree(rw)
+		rwTree = t
+		errs <- err
+	}()
+	go func() {
+		t, err := newRepoTree(ro)
+		roTree = t
+		errs <- err
+	}()
+
+	for i := 0; i < cap(errs); i++ {
+		err := <-errs
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := createLinks(roTree, rwTree, ro, rw); err != nil {
 		return err
 	}
 
-	// TODO(hanwen): can be done in parallel to the other processes.
-	oldRoot := filepath.Join(filepath.Dir(ro), wsName)
-	changed, err := changedFiles(oldRoot, ro)
+	changed, err := changedFiles(oldRoot, oldInfos, ro, roTree.allFiles())
 	if err != nil {
 		return fmt.Errorf("changedFiles: %v", err)
 	}
 
-	// TODO(hanwen): parallel?
-	now := time.Now()
-	for _, n := range changed {
-		if err := os.Chtimes(filepath.Join(ro, n), now, now); err != nil {
+	for i, p := range changed {
+		changed[i] = filepath.Join(ro, p)
+	}
+
+	if err := seqTouch(changed, time.Now()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func seqTouch(fs []string, t time.Time) error {
+	for _, f := range fs {
+		if err := os.Chtimes(f, t, t); err != nil {
 			return err
 		}
 	}
