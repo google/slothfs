@@ -15,6 +15,7 @@
 package fs
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -199,7 +200,15 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		}
 	}
 
-	fs.Inode().NewChild("manifest.xml", false, newDataNode(fs.manifestXML))
+	metaNode := fs.Inode().NewChild(".slothfs", true, newDirNode())
+	metaNode.NewChild("manifest.xml", false, newDataNode(fs.manifestXML))
+
+	var tree gitiles.Tree
+	treeContent, err := json.Marshal(tree)
+	if err != nil {
+		log.Panicf("json.Marshal: %v", err)
+	}
+	metaNode.NewChild("tree.json", false, newDataNode(treeContent))
 
 	return nil
 }

@@ -15,6 +15,7 @@
 package fs
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -410,8 +411,15 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 	}
 
-	r.Inode().NewChild(".gitid",
-		false, newDataNode([]byte(r.tree.ID)))
+	slothfsNode := r.Inode().NewChild(".slothfs", true, newDirNode())
+	slothfsNode.NewChild("treeID", false, newDataNode([]byte(r.tree.ID)))
+
+	treeContent, err := json.MarshalIndent(r.tree, "", " ")
+	if err != nil {
+		log.Panicf("json.Marshal: %v", err)
+	}
+
+	slothfsNode.NewChild("tree.json", false, newDataNode([]byte(treeContent)))
 
 	// We don't need the tree data anymore.
 	r.tree = nil

@@ -271,9 +271,9 @@ func TestGitilesFSTreeID(t *testing.T) {
 	}
 
 	want := "58d9fdae2c26d82e04f3fcafc4358b99109f0e70"
-	path := filepath.Join(fix.mntDir, ".gitid")
+	path := filepath.Join(fix.mntDir, ".slothfs/treeID")
 	if got, err := ioutil.ReadFile(path); err != nil {
-		t.Errorf("ReadFile(.gitid): %v", err)
+		t.Errorf("ReadFile(.slothfs/treeID): %v", err)
 	} else if string(got) != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -561,7 +561,7 @@ func TestManifestFSXMLFile(t *testing.T) {
 	}
 	defer fix.cleanup()
 
-	xmlPath := filepath.Join(fix.mntDir, "manifest.xml")
+	xmlPath := filepath.Join(fix.mntDir, ".slothfs", "manifest.xml")
 	fuseMF, err := manifest.ParseFile(xmlPath)
 	if err != nil {
 		t.Fatalf("ParseFile(%s): %v", xmlPath, err)

@@ -16,9 +16,10 @@
 
 
 for sub in manifest \
-gitiles \
-cache \
-fs \
+  gitiles \
+  cache \
+  fs \
+  populate \
 cmd/slothfs-expand-manifest \
 cmd/slothfs-multifs \
 cmd/slothfs-manifestfs \
