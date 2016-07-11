@@ -43,8 +43,9 @@ func main() {
 	}
 
 	if len(flag.Args()) < 1 {
-		log.Fatal("usage: main -gitiles URL -repo REPO [-branch BRANCH] MOUNT-POINT")
+		log.Fatal("mountpoint argument missing.")
 	}
+
 	mntDir := flag.Arg(0)
 
 	cache, err := cache.NewCache(*cacheDir, cache.Options{})
