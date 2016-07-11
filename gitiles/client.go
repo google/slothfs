@@ -86,6 +86,12 @@ func (s *Service) get(u url.URL) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.Header.Get("Content-Type") == "text/html; charset=UTF-8" {
+		out := make([]byte, base64.StdEncoding.DecodedLen(len(c)))
+		n, err := base64.StdEncoding.Decode(out, c)
+		return out[:n], err
+	}
 	return c, nil
 }
 
@@ -153,15 +159,7 @@ func (s *RepoService) GetBlob(branch, filename string) ([]byte, error) {
 
 	// TODO(hanwen): invent a more structured mechanism for logging.
 	log.Println(blobURL.String())
-	c, err := s.service.get(blobURL)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]byte, base64.StdEncoding.DecodedLen(len(c)))
-	n, err := base64.StdEncoding.Decode(out, c)
-
-	return out[:n], err
+	return s.service.get(blobURL)
 }
 
 // GetTree fetches a tree. The dir argument may not point to a

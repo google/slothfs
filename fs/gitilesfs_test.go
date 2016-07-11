@@ -180,12 +180,12 @@ func (s *testServer) handleStatic(w http.ResponseWriter, r *http.Request) {
 	out := []byte(resp)
 
 	if strings.Contains(r.URL.String(), "format=TEXT") {
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
 		str := base64.StdEncoding.EncodeToString(out)
 		w.Write([]byte(str))
 	} else {
 		w.Write([]byte(resp))
 	}
-	// TODO(hanwen): set content type?
 }
 
 func newTestServer() (*testServer, error) {
