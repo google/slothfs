@@ -66,7 +66,7 @@ func NewService(addr string, opts Options) (*Service, error) {
 	}, nil
 }
 
-func (s *Service) get(u url.URL) ([]byte, error) {
+func (s *Service) get(u *url.URL) ([]byte, error) {
 	ctx := context.Background()
 
 	if err := s.limiter.Wait(ctx); err != nil {
@@ -97,7 +97,7 @@ func (s *Service) get(u url.URL) ([]byte, error) {
 
 var xssTag = []byte(")]}'\n")
 
-func (s *Service) getJSON(u url.URL, dest interface{}) error {
+func (s *Service) getJSON(u *url.URL, dest interface{}) error {
 	c, err := s.get(u)
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func (s *Service) List() (map[string]*Project, error) {
 	listURL.RawQuery = "format=JSON"
 
 	projects := map[string]*Project{}
-	err := s.getJSON(listURL, &projects)
+	err := s.getJSON(&listURL, &projects)
 	return projects, err
 }
 
@@ -146,7 +146,7 @@ func (s *RepoService) Get() (*Project, error) {
 	jsonURL.RawQuery = "format=JSON"
 
 	var p Project
-	err := s.service.getJSON(jsonURL, &p)
+	err := s.service.getJSON(&jsonURL, &p)
 	return &p, err
 }
 
@@ -159,7 +159,7 @@ func (s *RepoService) GetBlob(branch, filename string) ([]byte, error) {
 
 	// TODO(hanwen): invent a more structured mechanism for logging.
 	log.Println(blobURL.String())
-	return s.service.get(blobURL)
+	return s.service.get(&blobURL)
 }
 
 // GetTree fetches a tree. The dir argument may not point to a
@@ -178,7 +178,7 @@ func (s *RepoService) GetTree(branch, dir string, recursive bool) (*Tree, error)
 	}
 
 	var tree Tree
-	err := s.service.getJSON(jsonURL, &tree)
+	err := s.service.getJSON(&jsonURL, &tree)
 	return &tree, err
 }
 
@@ -189,6 +189,6 @@ func (s *RepoService) GetCommit(branch string) (*Commit, error) {
 	jsonURL.RawQuery = "format=JSON"
 
 	var c Commit
-	err := s.service.getJSON(jsonURL, &c)
+	err := s.service.getJSON(&jsonURL, &c)
 	return &c, err
 }
