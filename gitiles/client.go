@@ -87,7 +87,7 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 		return nil, err
 	}
 
-	if resp.Header.Get("Content-Type") == "text/html; charset=UTF-8" {
+	if resp.Header.Get("Content-Type") == "text/plain; charset=UTF-8" {
 		out := make([]byte, base64.StdEncoding.DecodedLen(len(c)))
 		n, err := base64.StdEncoding.Decode(out, c)
 		return out[:n], err
