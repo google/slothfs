@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
+	"github.com/libgit2/git2go"
 )
 
 func main() {
@@ -87,18 +88,22 @@ func fetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Man
 func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.Manifest) error {
 	type resultT struct {
 		i    int
-		resp *gitiles.Commit
+		sha1 string
 		err  error
 	}
 	out := make(chan resultT, len(mf.Project))
 
-	// TODO(hanwen): avoid roundtrips if Revision is already a SHA1
 	for i := range mf.Project {
 		go func(i int) {
 			p := mf.Project[i]
+			rev := mf.ProjectRevision(&p)
+			if _, err := git.NewOid(rev); err == nil {
+				out <- resultT{i, rev, nil}
+				return
+			}
 			repo := service.NewRepoService(p.Name)
-			resp, err := repo.GetCommit(mf.ProjectRevision(&p))
-			out <- resultT{i, resp, err}
+			resp, err := service.GetCommit(rev)
+			out <- resultT{i, resp.Commit, err}
 		}(i)
 	}
 
@@ -107,7 +112,7 @@ func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.M
 		if r.err != nil {
 			return r.err
 		}
-		mf.Project[r.i].Revision = r.resp.Commit
+		mf.Project[r.i].Revision = r.sha1
 	}
 
 	return nil
