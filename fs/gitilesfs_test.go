@@ -356,6 +356,41 @@ func TestGitilesFS(t *testing.T) {
 	}
 }
 
+func TestGitilesFSTimeStamps(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, GitilesOptions{})
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	fn := filepath.Join(fix.mntDir, "testcase", "addprefix.mk")
+
+	n := time.Now()
+	if err := os.Chtimes(fn, n, n); err != nil {
+		t.Errorf("Chtimes: %v", err)
+	}
+
+	after, err := os.Lstat(fn)
+	if err != nil {
+		t.Fatalf("Lstat(%q): %v", fn, err)
+	}
+
+	if !n.Equal(after.ModTime()) {
+		t.Errorf("mod time did not change")
+	}
+}
+
 func TestGitilesFSMultiFetch(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
