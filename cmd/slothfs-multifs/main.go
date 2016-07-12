@@ -71,10 +71,6 @@ func main() {
 	}
 
 	root := fs.NewMultiFS(service, cache, opts)
-	if err != nil {
-		log.Fatalf("NewManifestFS: %v", err)
-	}
-
 	server, _, err := nodefs.MountRoot(mntDir, root, &nodefs.Options{
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,
