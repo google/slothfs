@@ -116,9 +116,12 @@ func (s *Service) getJSON(u *url.URL, dest interface{}) error {
 }
 
 // List retrieves the list of projects.
-func (s *Service) List() (map[string]*Project, error) {
+func (s *Service) List(branches []string) (map[string]*Project, error) {
 	listURL := s.addr
 	listURL.RawQuery = "format=JSON"
+	for _, b := range branches {
+		listURL.RawQuery += "&b=" + b
+	}
 
 	projects := map[string]*Project{}
 	err := s.getJSON(&listURL, &projects)

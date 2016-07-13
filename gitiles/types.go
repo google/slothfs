@@ -17,8 +17,10 @@ package gitiles
 import "fmt"
 
 type Project struct {
-	Name     string
-	CloneURL string `json:"clone_url"`
+	Name        string
+	CloneURL    string            `json:"clone_url"`
+	Description string            `json:"description"`
+	Branches    map[string]string `json:"branches"`
 }
 
 type Person struct {

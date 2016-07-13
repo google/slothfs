@@ -236,17 +236,27 @@ func TestTypes(t *testing.T) {
 		},
 		{
 			in: `{
-  "accessories/manifest": {
-    "name": "accessories/manifest",
-    "clone_url": "https://android.googlesource.com/accessories/manifest"
+   "plugins/oauth": {
+    "name": "plugins/oauth",
+    "clone_url": "https://gerrit.googlesource.com/plugins/oauth",
+    "description": "OAuth provider for GitHub and Google",
+    "branches": {
+      "master": "56fbd4c28ba35877a38ec4c6bbfc6b5920db4207",
+      "stable-2.10": "5d404e6c38ff380a3b8964c1343fb91b8ec6bb76"
+    }
   }
 }
 `,
 			want: &map[string]*Project{
-				"accessories/manifest": &Project{
-					Name:     "accessories/manifest",
-					CloneURL: "https://android.googlesource.com/accessories/manifest",
-				}},
+				"plugins/oauth": &Project{
+					Name:        "plugins/oauth",
+					CloneURL:    "https://gerrit.googlesource.com/plugins/oauth",
+					Description: "OAuth provider for GitHub and Google",
+					Branches: map[string]string{
+						"master":      "56fbd4c28ba35877a38ec4c6bbfc6b5920db4207",
+						"stable-2.10": "5d404e6c38ff380a3b8964c1343fb91b8ec6bb76",
+					}},
+			},
 			got: &map[string]*Project{},
 		},
 	}
