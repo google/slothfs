@@ -22,7 +22,8 @@ import (
 
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
-	"github.com/libgit2/git2go"
+
+	git "github.com/libgit2/git2go"
 )
 
 func main() {
@@ -37,11 +38,7 @@ func main() {
 
 	// SustainedQPS is a little high, but since this is a one-shot
 	// program let's try to get away with it.
-	service, err := gitiles.NewService(*gitilesURL,
-		gitiles.Options{
-			BurstQPS:     10,
-			SustainedQPS: 5,
-		})
+	service, err := gitiles.NewService(*gitilesURL, gitiles.Options{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,10 +51,6 @@ func main() {
 	mf.Filter()
 
 	if err := derefManifest(service, *repo, mf); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := setCloneURLs(service, mf); err != nil {
 		log.Fatal(err)
 	}
 
@@ -86,52 +79,46 @@ func fetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Man
 }
 
 func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.Manifest) error {
-	type resultT struct {
-		i    int
-		sha1 string
-		err  error
-	}
-	out := make(chan resultT, len(mf.Project))
 
-	for i := range mf.Project {
-		go func(i int) {
-			p := mf.Project[i]
-			rev := mf.ProjectRevision(&p)
-			if _, err := git.NewOid(rev); err == nil {
-				out <- resultT{i, rev, nil}
-				return
-			}
-			repo := service.NewRepoService(p.Name)
-			resp, err := service.GetCommit(rev)
-			out <- resultT{i, resp.Commit, err}
-		}(i)
-	}
+	branchSet := map[string]struct{}{}
 
-	for range mf.Project {
-		r := <-out
-		if r.err != nil {
-			return r.err
+	var todoProjects []int
+	for i, p := range mf.Project {
+		rev := mf.ProjectRevision(&p)
+		if _, err := git.NewOid(rev); err == nil {
+			continue
 		}
-		mf.Project[r.i].Revision = r.sha1
+
+		branchSet[rev] = struct{}{}
+		todoProjects = append(todoProjects, i)
 	}
 
-	return nil
-}
+	var branches []string
+	for k := range branchSet {
+		branches = append(branches, k)
+	}
 
-func setCloneURLs(service *gitiles.Service, mf *manifest.Manifest) error {
-	repos, err := service.List()
+	repos, err := service.List(branches)
 	if err != nil {
 		return err
 	}
+	for _, i := range todoProjects {
+		p := &mf.Project[i]
 
-	for i, p := range mf.Project {
 		proj, ok := repos[p.Name]
 		if !ok {
 			return fmt.Errorf("server list doesn't mention repo %s", p.Name)
 		}
 
-		mf.Project[i].CloneURL = proj.CloneURL
-	}
+		p.CloneURL = proj.CloneURL
 
+		branch := mf.ProjectRevision(p)
+		commit, ok := proj.Branches[branch]
+		if !ok {
+			return fmt.Errorf("branch %q for repo %s not returned.", branch, p.Name)
+		}
+
+		p.Revision = commit
+	}
 	return nil
 }
