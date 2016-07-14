@@ -706,8 +706,12 @@ func TestMultiFSBasic(t *testing.T) {
 
 	if got, err := os.Readlink(configName); err != nil {
 		t.Fatalf("Readlink(%s): %", configName, err)
-	} else if want := "../ws/manifest.xml"; got != want {
+	} else if want := "../ws/.slothfs/manifest.xml"; got != want {
 		t.Errorf("got link %s, want %s", got, want)
+	}
+
+	if _, err := manifest.ParseFile(configName); err != nil {
+		t.Fatalf("ParseFile(%s): %v", configName, err)
 	}
 
 	fn := filepath.Join(wsDir, "build", "kati", "AUTHORS")

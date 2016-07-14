@@ -135,7 +135,7 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 	config := c.Inode().NewChild(name, false, &configEntryNode{
 		Node: nodefs.NewDefaultNode(),
 		// This is sneaky, but it appears to work.
-		link: []byte(filepath.Join("..", name, "manifest.xml")),
+		link: []byte(filepath.Join("..", name, ".slothfs", "manifest.xml")),
 	})
 
 	if err := fs.(*manifestFSRoot).onMount(c.root.fsConn); err != nil {
