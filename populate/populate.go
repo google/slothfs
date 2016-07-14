@@ -159,16 +159,11 @@ func clearLinks(mount, dir string) (string, error) {
 
 // Returns the filenames (as relative paths) in newDir that have
 // changed relative to the files in oldDir.
-func changedFiles(oldInfos map[string]*fileInfo, newInfos map[string]*fileInfo) ([]string, error) {
-	var changed []string
+func changedFiles(oldInfos map[string]*fileInfo, newInfos map[string]*fileInfo) (added, changed []string, err error) {
 	for path, info := range newInfos {
 		old, ok := oldInfos[path]
 		if !ok {
-			changed = append(changed, path)
-			continue
-		}
-		if info.isLink {
-			// TODO(hanwen): maybe we should we deref the link?
+			added = append(added, path)
 			continue
 		}
 
@@ -182,16 +177,17 @@ func changedFiles(oldInfos map[string]*fileInfo, newInfos map[string]*fileInfo) 
 		}
 	}
 	sort.Strings(changed)
-	return changed, nil
+	sort.Strings(added)
+	return added, changed, nil
 }
 
 // Checkout updates a RW dir with new symlinks to the given RO dir.
 // Returns the files that should be touched.
-func Checkout(ro, rw string) ([]string, error) {
+func Checkout(ro, rw string) (added, changed []string, err error) {
 	ro = filepath.Clean(ro)
 	wsName, err := clearLinks(filepath.Dir(ro), rw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	oldRoot := filepath.Join(filepath.Dir(ro), wsName)
 
@@ -227,23 +223,27 @@ func Checkout(ro, rw string) ([]string, error) {
 	for i := 0; i < cap(errs); i++ {
 		err := <-errs
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	if err := createLinks(roTree, rwTree, ro, rw); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	newInfos := roTree.allFiles()
-	changed, err := changedFiles(oldInfos, newInfos)
+	added, changed, err = changedFiles(oldInfos, newInfos)
 	if err != nil {
-		return nil, fmt.Errorf("changedFiles: %v", err)
+		return nil, nil, fmt.Errorf("changedFiles: %v", err)
 	}
 
 	for i, p := range changed {
 		changed[i] = filepath.Join(ro, p)
 	}
 
-	return changed, nil
+	for i, p := range added {
+		added[i] = filepath.Join(ro, p)
+	}
+
+	return added, changed, nil
 }

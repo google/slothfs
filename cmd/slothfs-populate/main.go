@@ -34,16 +34,24 @@ func main() {
 		log.Fatal("too many arguments.")
 	}
 
-	changed, err := populate.Checkout(*mount, dir)
+	added, changed, err := populate.Checkout(*mount, dir)
 	if err != nil {
 		log.Fatalf("populate.Checkout: %v", err)
 	}
 
-	now := time.Now()
-	for _, c := range changed {
-		if err := os.Chtimes(c, now, now); err != nil {
-			log.Fatalf("Chtimes(%s): %v", c, err)
+	if len(changed) > 0 {
+		now := time.Now()
+		n := 0
+		for _, slice := range [][]string{added, changed} {
+			for _, c := range slice {
+				if err := os.Chtimes(c, now, now); err != nil {
+					log.Fatalf("Chtimes(%s): %v", c, err)
+				}
+				n++
+			}
 		}
+		log.Printf("touched %d files", n)
+	} else {
+		log.Printf("no files were changed, %d were added; assuming fresh checkout.", len(added))
 	}
-	log.Printf("touched %d files", len(changed))
 }

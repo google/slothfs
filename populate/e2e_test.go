@@ -7,12 +7,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
+	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 
 	git "github.com/libgit2/git2go"
@@ -38,58 +40,110 @@ func newInt(i int) *int {
 	return &i
 }
 
+func newString(s string) *string {
+	return &s
+}
+
 func abortListener(l net.Listener) {
-	_, err := l.Accept()
-	if err == nil {
-		log.Panicf("got incoming connection")
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			break
+		}
+		conn.Close()
 	}
 }
 
-func TestFUSE(t *testing.T) {
+type fixture struct {
+	dir          string
+	cache        *cache.Cache
+	fsServer     *fuse.Server
+	abortGitiles net.Listener
+}
+
+func (f *fixture) Cleanup() {
+	if f.abortGitiles != nil {
+		f.abortGitiles.Close()
+	}
+	if f.fsServer != nil {
+		if err := f.fsServer.Unmount(); err != nil {
+			return
+		}
+	}
+	os.RemoveAll(f.dir)
+}
+
+func (f *fixture) addWorkspace(name string, mf *manifest.Manifest) error {
+	bytes1, err := mf.MarshalXML()
+	if err != nil {
+		return err
+	}
+
+	dir := f.dir
+
+	if err := ioutil.WriteFile(filepath.Join(dir, name+".xml"), bytes1, 0644); err != nil {
+		return err
+	}
+	if err := os.Symlink(filepath.Join(dir, name+".xml"), filepath.Join(dir, "mnt", "config", name)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func newFixture() (*fixture, error) {
 	dir, err := ioutil.TempDir("", "")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	defer os.RemoveAll(dir)
+
+	fix := fixture{dir: dir}
 	for _, d := range []string{"mnt", "ws", "cache"} {
 		if err := os.MkdirAll(filepath.Join(dir, d), 0755); err != nil {
-			t.Fatal(err)
+			return nil, err
 		}
 	}
 
-	cache, err := cache.NewCache(filepath.Join(dir, "cache"), cache.Options{})
+	fix.cache, err = cache.NewCache(filepath.Join(dir, "cache"), cache.Options{})
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	// Setup a fake gitiles; make sure we never talk to it.
-	l, err := net.Listen("tcp", ":0")
+	fix.abortGitiles, err = net.Listen("tcp", ":0")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	go abortListener(l)
-	defer l.Close()
+	go abortListener(fix.abortGitiles)
 
-	service, err := gitiles.NewService(fmt.Sprintf("http://%s/", l.Addr()), gitiles.Options{})
+	service, err := gitiles.NewService(fmt.Sprintf("http://%s/", fix.abortGitiles.Addr()), gitiles.Options{})
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}
 
 	opts := fs.MultiFSOptions{}
 
-	root := fs.NewMultiFS(service, cache, opts)
+	root := fs.NewMultiFS(service, fix.cache, opts)
 	fuseOpts := nodefs.NewOptions()
 	server, _, err := nodefs.MountRoot(filepath.Join(dir, "mnt"), root, fuseOpts)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	go server.Serve()
-	defer server.Unmount()
+
+	return &fix, nil
+}
+
+func TestFUSESymlink(t *testing.T) {
+	fixture, err := newFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Cleanup()
 
 	// We avoid talking to gitiles by inserting entries into the
 	// cache manually.
-	if err := cache.Tree.Add(gitID(ids[0]), &gitiles.Tree{
+	if err := fixture.cache.Tree.Add(gitID(ids[0]), &gitiles.Tree{
 		ID: ids[0],
 		Entries: []gitiles.TreeEntry{
 			{
@@ -98,6 +152,98 @@ func TestFUSE(t *testing.T) {
 				Type: "blob",
 				ID:   ids[1],
 				Size: newInt(42),
+			},
+			{
+				Mode:   0100644,
+				Name:   "link",
+				Type:   "blob",
+				ID:     ids[2],
+				Size:   newInt(1),
+				Target: newString("non-existent"),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// We avoid talking to gitiles by inserting entries into the
+	// cache manually.
+	if err := fixture.cache.Tree.Add(gitID(ids[1]), &gitiles.Tree{
+		ID: ids[1],
+		Entries: []gitiles.TreeEntry{
+			{
+				Mode: 0100644,
+				Name: "a",
+				Type: "blob",
+				ID:   ids[1],
+				Size: newInt(42),
+			},
+			{
+				Mode:   0100644,
+				Name:   "link",
+				Type:   "blob",
+				ID:     ids[3],
+				Size:   newInt(1),
+				Target: newString("a"),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i <= 1; i++ {
+		if err := fixture.addWorkspace(fmt.Sprintf("m%d", i), &manifest.Manifest{
+			Project: []manifest.Project{{
+				Name:     "platform/project",
+				Path:     "p",
+				Revision: ids[i],
+			}}}); err != nil {
+			t.Fatalf("addWorkspace(%d): %v", i, err)
+		}
+	}
+
+	ws := filepath.Join(fixture.dir, "ws")
+	m0 := filepath.Join(fixture.dir, "mnt", "m0")
+	added, changed, err := Checkout(m0, ws)
+	if err != nil {
+		t.Fatalf("Checkout m0: %v", err)
+	}
+	if len(changed) > 0 {
+		t.Errorf("got changed files %v on fresh checkout", changed)
+	}
+	if want := []string{filepath.Join(m0, "p/a"), filepath.Join(m0, "p/link")}; !reflect.DeepEqual(added, want) {
+		t.Errorf("got added %v want %v on fresh checkout", added, want)
+	}
+
+	m1 := filepath.Join(fixture.dir, "mnt", "m1")
+	added, changed, err = Checkout(m1, ws)
+	if len(added) > 0 {
+		t.Errorf("got added files %v on sync", added)
+	}
+	if want := []string{filepath.Join(m1, "p/link")}; !reflect.DeepEqual(changed, want) {
+		t.Errorf("got changed files %v, want %v", changed, want)
+	}
+}
+
+func TestBasic(t *testing.T) {
+	fixture, err := newFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Cleanup()
+	dir := fixture.dir
+
+	// We avoid talking to gitiles by inserting entries into the
+	// cache manually.
+	if err := fixture.cache.Tree.Add(gitID(ids[0]), &gitiles.Tree{
+		ID: ids[0],
+		Entries: []gitiles.TreeEntry{
+			{
+				Mode: 0100644,
+				Name: "a",
+				Type: "blob",
+				ID:   ids[1],
+				Size: newInt(1),
 			},
 			{
 				Mode: 0100644,
@@ -110,7 +256,7 @@ func TestFUSE(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.Tree.Add(gitID(ids[1]), &gitiles.Tree{
+	if err := fixture.cache.Tree.Add(gitID(ids[1]), &gitiles.Tree{
 		ID: ids[1],
 		Entries: []gitiles.TreeEntry{
 			{
@@ -118,7 +264,7 @@ func TestFUSE(t *testing.T) {
 				Name: "a",
 				Type: "blob",
 				ID:   ids[2],
-				Size: newInt(42),
+				Size: newInt(1),
 			},
 			{
 				Mode: 0100644,
@@ -132,13 +278,14 @@ func TestFUSE(t *testing.T) {
 				Name: "new",
 				Type: "blob",
 				ID:   ids[3],
-				Size: newInt(42),
+				Size: newInt(1),
 			},
 		},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := cache.Tree.Add(gitID(ids[2]), &gitiles.Tree{
+
+	if err := fixture.cache.Tree.Add(gitID(ids[2]), &gitiles.Tree{
 		ID: ids[2],
 		Entries: []gitiles.TreeEntry{
 			{
@@ -146,21 +293,23 @@ func TestFUSE(t *testing.T) {
 				Name: "d",
 				Type: "blob",
 				ID:   ids[3],
-				Size: newInt(42),
+				Size: newInt(1),
 			},
 		},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	mf1 := manifest.Manifest{
+	if err := fixture.addWorkspace("m1", &manifest.Manifest{
 		Project: []manifest.Project{{
 			Name:     "platform/project",
 			Path:     "project",
 			Revision: ids[0],
-		}}}
+		}}}); err != nil {
+		t.Fatalf("addWorkspace(m1): %v", err)
+	}
 
-	mf2 := manifest.Manifest{
+	if err := fixture.addWorkspace("m2", &manifest.Manifest{
 		Project: []manifest.Project{
 			{
 				Name:     "platform/project",
@@ -171,42 +320,20 @@ func TestFUSE(t *testing.T) {
 				Path:     "sub",
 				Revision: ids[2],
 			}},
-	}
-
-	bytes1, err := mf1.MarshalXML()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(dir, "m1.xml"), bytes1, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	bytes2, err := mf2.MarshalXML()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(dir, "m2.xml"), bytes2, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.Symlink(filepath.Join(dir, "m1.xml"), filepath.Join(dir, "mnt", "config", "m1")); err != nil {
-		t.Fatal(err)
+	}); err != nil {
+		t.Fatalf("addWorkspace(m2): %v", err)
 	}
 
 	testFile := filepath.Join(dir, "mnt", "m1", "project", "b/c")
 	if fi, err := os.Lstat(testFile); err != nil {
 		t.Fatalf("Lstat(%s): %v", testFile, err)
 	} else if fi.Size() != 1 {
-		t.Fatalf("%s has size %d", fi.Size())
-	}
-
-	if err := os.Symlink(filepath.Join(dir, "m2.xml"), filepath.Join(dir, "mnt", "config", "m2")); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s has size %d", testFile, fi.Size())
 	}
 
 	ws := filepath.Join(dir, "ws")
 
-	if _, err := Checkout(filepath.Join(dir, "mnt", "m1"), ws); err != nil {
+	if _, _, err := Checkout(filepath.Join(dir, "mnt", "m1"), ws); err != nil {
 		t.Fatal("Checkout m1:", err)
 	}
 
@@ -220,27 +347,25 @@ func TestFUSE(t *testing.T) {
 	// the test setup that no blobs are shared with newly
 	// appearing files, or they'll be touched for being new files.
 
-	changed, err := Checkout(filepath.Join(dir, "mnt", "m2"), ws)
+	added, changed, err := Checkout(filepath.Join(dir, "mnt", "m2"), ws)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, f := range []string{"project/a", "project/new"} {
-		found := false
-		for _, c := range changed {
-			if c == filepath.Join(dir, "mnt", "m2", f) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("file %s was not changed.", f)
-		}
+	if want := []string{filepath.Join(dir, "mnt", "m2", "project/a")}; !reflect.DeepEqual(changed, want) {
+		t.Errorf("got changed %v, want %v", changed, want)
+	}
+
+	if want := []string{
+		filepath.Join(dir, "mnt", "m2", "project/new"),
+		filepath.Join(dir, "mnt", "m2", "sub/d"),
+	}; !reflect.DeepEqual(added, want) {
+		t.Errorf("got added %v, want %v", added, want)
 	}
 
 	if dest, err := os.Readlink(filepath.Join(ws, "sub")); err != nil {
 		t.Fatal(err)
 	} else if want := filepath.Join(dir, "mnt", "m2", "sub"); dest != want {
-		t.Fatalf("got %q, want %q", dest, want)
+		t.Fatalf("Readlink(ws/sub): got %q, want %q", dest, want)
 	}
 }

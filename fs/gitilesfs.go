@@ -330,6 +330,12 @@ type dirNode struct {
 	nodefs.Node
 }
 
+// Implement Utimens so we don't create spurious "not implemented"
+// messages when directory targets for symlinks are touched.
+func (n *dirNode) Utimens(file nodefs.File, atime *time.Time, mtime *time.Time, context *fuse.Context) (code fuse.Status) {
+	return fuse.OK
+}
+
 func (n *dirNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
 	out.Mode = fuse.S_IFDIR | 0755
 	t := time.Unix(1, 0)
