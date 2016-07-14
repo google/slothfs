@@ -44,7 +44,6 @@ func main() {
 	}
 
 	opts := gitiles.Options{
-		Redirect:  true,
 		UserAgent: *agent,
 	}
 	if *cookieJarPath != "" {
@@ -60,7 +59,7 @@ func main() {
 		log.Fatalf("NewService: %v", err)
 	}
 
-	projs, err := service.List()
+	projs, err := service.List(nil)
 	if err != nil {
 		log.Fatalf("List: %v", err)
 	}

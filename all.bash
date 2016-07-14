@@ -26,6 +26,7 @@ cmd/slothfs-manifestfs \
 cmd/slothfs-populate \
 cmd/slothfs-gitilesfs \
 cmd/slothfs-deref-manifest \
+cmd/slothfs-gitiles-test \
   ; do
   p=github.com/google/slothfs/${sub}
   go clean $p
