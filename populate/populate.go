@@ -109,6 +109,13 @@ func createLinks(ro, rw *repoTree, roRoot, rwRoot string) error {
 			}
 		}
 	}
+
+	for _, c := range ro.copied {
+		if err := os.Symlink(filepath.Join(roRoot, c), filepath.Join(rwRoot, c)); err != nil && !os.IsExist(err) {
+			return err
+		}
+	}
+
 	return nil
 }
 

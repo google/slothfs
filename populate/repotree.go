@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	git "github.com/libgit2/git2go"
@@ -35,9 +36,6 @@ import (
 type fileInfo struct {
 	// the SHA1 of the file. This can be nil if getting it was too expensive.
 	sha1 *git.Oid
-
-	// We can't do chtimes on symlinks.
-	isLink bool
 }
 
 // repoTree is a nested set of Git repositories.
@@ -47,6 +45,9 @@ type repoTree struct {
 
 	// files in this repository.
 	entries map[string]*fileInfo
+
+	// paths that are instantiated with Copyfile or Linkfile.
+	copied []string
 }
 
 // findParentRepo recursively finds the deepest child that is a prefix
@@ -102,12 +103,13 @@ func repoTreeFromManifest(xmlFile string) (*repoTree, error) {
 
 	for _, p := range mf.Project {
 		for _, c := range p.Copyfile {
-			root.entries[c.Dest] = &fileInfo{}
+			root.copied = append(root.copied, c.Dest)
 		}
 		for _, c := range p.Linkfile {
-			root.entries[c.Dest] = &fileInfo{}
+			root.copied = append(root.copied, c.Dest)
 		}
 	}
+	sort.Strings(root.copied)
 	return root, nil
 }
 
@@ -132,10 +134,6 @@ func (t *repoTree) fillFromSlothFS(dir string) error {
 		}
 
 		t.entries[e.Name] = fi
-
-		if e.Target != nil {
-			fi.isLink = true
-		}
 	}
 
 	return nil

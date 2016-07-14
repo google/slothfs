@@ -145,9 +145,10 @@ func TestRepoTreeFromManifest(t *testing.T) {
 		children: map[string]*repoTree{
 			"build": buildT,
 		},
-		entries: map[string]*fileInfo{
-			"Makefile":   &fileInfo{},
-			"Android.bp": &fileInfo{},
+		entries: map[string]*fileInfo{},
+		copied: []string{
+			"Android.bp",
+			"Makefile",
 		},
 	}
 

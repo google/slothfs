@@ -134,6 +134,56 @@ func newFixture() (*fixture, error) {
 	return &fix, nil
 }
 
+func TestCopyEntries(t *testing.T) {
+	fixture, err := newFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Cleanup()
+
+	// We avoid talking to gitiles by inserting entries into the
+	// cache manually.
+	if err := fixture.cache.Tree.Add(gitID(ids[0]), &gitiles.Tree{
+		ID: ids[0],
+		Entries: []gitiles.TreeEntry{
+			{
+				Mode: 0100644,
+				Name: "a",
+				Type: "blob",
+				ID:   ids[1],
+				Size: newInt(42),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := fixture.addWorkspace("m", &manifest.Manifest{
+		Project: []manifest.Project{{
+			Name:     "platform/project",
+			Path:     "p",
+			Revision: ids[0],
+			Copyfile: []manifest.Copyfile{
+				{Src: "a", Dest: "bla"},
+			},
+		}}}); err != nil {
+		t.Fatalf("addWorkspace: %v", err)
+	}
+
+	ws := filepath.Join(fixture.dir, "ws")
+	roRoot := filepath.Join(fixture.dir, "mnt", "m")
+	if _, _, err := Checkout(roRoot, ws); err != nil {
+		t.Fatalf("Checkout: %v", err)
+	}
+
+	if dest, err := os.Readlink(filepath.Join(ws, "bla")); err != nil {
+		t.Fatal(err)
+	} else if want := filepath.Join(roRoot, "bla"); dest != want {
+		t.Fatalf("Readlink(ws/sub): got %q, want %q", dest, want)
+	}
+
+}
+
 func TestFUSESymlink(t *testing.T) {
 	fixture, err := newFixture()
 	if err != nil {
