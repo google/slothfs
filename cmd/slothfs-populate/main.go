@@ -44,7 +44,15 @@ func main() {
 		n := 0
 		for _, slice := range [][]string{added, changed} {
 			for _, c := range slice {
-				if err := os.Chtimes(c, now, now); err != nil {
+				err := os.Chtimes(c, now, now)
+				if os.IsNotExist(err) {
+					fi, statErr := os.Lstat(c)
+					if statErr == nil && fi.Mode()&os.ModeSymlink != 0 {
+						// Ignore broken symlinks.
+						err = nil
+					}
+				}
+				if err != nil {
 					log.Fatalf("Chtimes(%s): %v", c, err)
 				}
 				n++
