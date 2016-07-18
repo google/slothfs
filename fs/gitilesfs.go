@@ -351,10 +351,22 @@ func newDirNode() nodefs.Node {
 	return &dirNode{nodefs.NewDefaultNode()}
 }
 
+func (r *gitilesRoot) pathTo(fsConn *nodefs.FileSystemConnector, dir string) *nodefs.Inode {
+	parent, left := fsConn.Node(r.Inode(), dir)
+	for _, l := range left {
+		ch := parent.NewChild(l, true, newDirNode())
+		parent = ch
+	}
+	return parent
+}
+
 func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	for _, e := range r.tree.Entries {
 		if e.Type == "commit" {
-			// TODO(hanwen): support submodules.
+			// TODO(hanwen): support submodules.  For now,
+			// we pretend we are plain git, which also
+			// leaves an empty directory in the place of a submodule.
+			r.pathTo(fsConn, e.Name)
 			continue
 		}
 		if e.Type != "blob" {
@@ -364,14 +376,10 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		p := e.Name
 		dir, base := filepath.Split(p)
 
-		parent, left := fsConn.Node(r.Inode(), dir)
-		for _, l := range left {
-			ch := parent.NewChild(l, true, newDirNode())
-			parent = ch
-		}
+		parent := r.pathTo(fsConn, dir)
 		id, err := git.NewOid(e.ID)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		// Determine if file should trigger a clone.

@@ -296,6 +296,35 @@ func TestGitilesFSTreeID(t *testing.T) {
 	}
 }
 
+func TestGitilesFSSubmodule(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+
+	tree := &gitiles.Tree{
+		ID: "ffffbadf691d36e8048b63f89d1a86ee5fa4325c",
+		Entries: []gitiles.TreeEntry{{
+			Name: "submod",
+			Type: "commit",
+			ID:   "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
+		}},
+	}
+	fs := NewGitilesRoot(fix.cache, tree, repoService, GitilesOptions{})
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	if fi, err := os.Lstat(filepath.Join(fix.mntDir, "submod")); err != nil {
+		t.Fatalf("Stat(submod): %v", err)
+	} else if !fi.IsDir() {
+		t.Errorf("Stat(submod): got mode %x, want dir", fi.Mode())
+	}
+}
+
 func TestGitilesFS(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
