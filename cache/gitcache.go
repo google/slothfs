@@ -128,7 +128,6 @@ func (c *gitCache) runGit(dir string, args ...string) error {
 	defer logfile.Close()
 
 	cmd := exec.Command("git", args...)
-	log.Printf("running %s (log: %s)", cmd.Args, logfile.Name())
 	cmd.Dir = dir
 
 	var out, errOut bytes.Buffer
@@ -147,7 +146,9 @@ func (c *gitCache) runGit(dir string, args ...string) error {
 			args, runErr, err)
 	}
 
-	log.Printf("ran %s exit %v", cmd.Args, err)
+	if err != nil {
+		log.Printf("ran %s exit %v", cmd.Args, err)
+	}
 	return runErr
 }
 
