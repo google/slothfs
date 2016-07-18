@@ -36,7 +36,9 @@ func newLazyRepo(url string, cache *gitCache) *LazyRepo {
 	r := &LazyRepo{
 		url:   url,
 		cache: cache,
+		repo:  cache.OpenLocal(url),
 	}
+
 	return r
 }
 
