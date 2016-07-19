@@ -124,12 +124,12 @@ func newFixture() (*fixture, error) {
 
 	root := fs.NewMultiFS(service, fix.cache, opts)
 	fuseOpts := nodefs.NewOptions()
-	server, _, err := nodefs.MountRoot(filepath.Join(dir, "mnt"), root, fuseOpts)
+	fix.fsServer, _, err = nodefs.MountRoot(filepath.Join(dir, "mnt"), root, fuseOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	go server.Serve()
+	go fix.fsServer.Serve()
 
 	return &fix, nil
 }
