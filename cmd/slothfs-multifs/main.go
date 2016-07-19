@@ -32,7 +32,7 @@ func main() {
 	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
-	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
+	config := flag.String("config", filepath.Join(os.Getenv("HOME"), ".config", "slothfs"), "directory with configuration files.")
 	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
 	agent := flag.String("agent", "slothfs-multifs", "gitiles User-Agent string to use.")
 	flag.Parse()
@@ -69,12 +69,18 @@ func main() {
 
 	opts := fs.MultiFSOptions{}
 	if *config != "" {
-		configContents, err := ioutil.ReadFile(*config)
+		cloneJS := filepath.Join(*config, "clone.json")
+		configContents, err := ioutil.ReadFile(cloneJS)
 		if err != nil {
 			log.Fatal(err)
 		}
 		opts.RepoCloneOption, opts.FileCloneOption, err = fs.ReadConfig(configContents)
 		if err != nil {
+			log.Fatal(err)
+		}
+
+		opts.ManifestDir = filepath.Join(*config, "manifests")
+		if err := os.MkdirAll(opts.ManifestDir, 0755); err != nil {
 			log.Fatal(err)
 		}
 	}

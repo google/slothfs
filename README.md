@@ -59,6 +59,9 @@ android:
 
 A more elaborate configuration file is included as `android.json`.
 
+By default, slothfs loads the configuration from =$HOME/.config/slothfs/clone.json=.
+
+
 DISCLAIMER
 ==========
 

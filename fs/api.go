@@ -49,6 +49,8 @@ type ManifestOptions struct {
 
 // MultiFSOptions holds options for a file system with multiple manifests.
 type MultiFSOptions struct {
+	// ManifestDir stores configured manifest files.
+	ManifestDir string
 
 	// RepoCloneOption matches against the Path field of the
 	// repository within a manifest.

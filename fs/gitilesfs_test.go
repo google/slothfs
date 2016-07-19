@@ -758,3 +758,62 @@ func TestMultiFSBasic(t *testing.T) {
 		t.Errorf("Lstat(%s): got %v, want error", wsDir, fi)
 	}
 }
+
+func TestMultiFSManifestDir(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatalf("newTestFixture: %v", err)
+	}
+	defer fix.cleanup()
+
+	mfDir := filepath.Join(fix.dir, "manifests")
+	if err := os.MkdirAll(mfDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	xmlFile := filepath.Join(mfDir, "ws")
+	if err := ioutil.WriteFile(xmlFile, []byte(testManifestXML), 0644); err != nil {
+		t.Errorf("WriteFile(%s): %v", xmlFile, err)
+	}
+
+	opts := MultiFSOptions{
+		ManifestDir: mfDir,
+	}
+	fs := NewMultiFS(fix.service, fix.cache, opts)
+
+	if err := fix.mount(fs); err != nil {
+		t.Fatalf("mount: %v", err)
+	}
+
+	wsDir := filepath.Join(fix.mntDir, "ws")
+	if _, err := os.Lstat(wsDir); err != nil {
+		t.Fatalf("Lstat(%s): %v", wsDir)
+	}
+
+	if err := os.Remove(filepath.Join(fix.mntDir, "config", "ws")); err != nil {
+		t.Fatalf("Remove(config link): %v", err)
+	}
+
+	if fi, err := os.Lstat(filepath.Join(mfDir, "ws")); err == nil {
+		t.Errorf("'ws' still in manifest dir: %v", fi)
+	}
+
+	f, err := ioutil.TempFile("", "")
+	if err != nil {
+		t.Fatalf("TempFile: %v", err)
+	}
+	if err := ioutil.WriteFile(f.Name(), []byte(testManifestXML), 0644); err != nil {
+		t.Errorf("WriteFile(%s): %v", xmlFile, err)
+	}
+
+	configName := filepath.Join(fix.mntDir, "config", "ws2")
+	if err := os.Symlink(f.Name(), configName); err != nil {
+		t.Fatalf("Symlink(%s):  %v", xmlFile, err)
+	}
+
+	// XML file appears again.
+	xmlFile = filepath.Join(mfDir, "ws2")
+	if _, err := os.Stat(xmlFile); err != nil {
+		t.Errorf("Stat(%s): %v", xmlFile, err)
+	}
+}

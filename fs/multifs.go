@@ -17,6 +17,7 @@ package fs
 import (
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/google/slothfs/cache"
@@ -35,12 +36,35 @@ type multiManifestFSRoot struct {
 	gitiles   *gitiles.Service
 }
 
+func (c *configNode) configureWorkspaces() error {
+	if c.root.options.ManifestDir == "" {
+		return nil
+	}
+	fs, err := filepath.Glob(filepath.Join(c.root.options.ManifestDir, "*"))
+	if err != nil || len(fs) == 0 {
+		return err
+	}
+
+	log.Println("configuring workspaces...")
+	for _, f := range fs {
+		_, code := c.Symlink(filepath.Base(f), f, nil)
+		log.Printf("manifest %s: %v", f, code)
+	}
+	return nil
+}
+
 func (r *multiManifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	r.fsConn = fsConn
-	r.Inode().NewChild("config", true, &configNode{
+
+	cfg := &configNode{
 		Node: nodefs.NewDefaultNode(),
 		root: r,
-	})
+	}
+	r.Inode().NewChild("config", true, cfg)
+
+	if err := cfg.configureWorkspaces(); err != nil {
+		log.Println("configureWorkspaces: %v", err)
+	}
 }
 
 func (r *configNode) Deletable() bool { return false }
@@ -98,6 +122,10 @@ func (c *configNode) Unlink(name string, ctx *fuse.Context) fuse.Status {
 	// the Unlink method, will VFS already knows about the
 	// deletion once we return OK.
 
+	if dir := c.root.options.ManifestDir; dir != "" {
+		os.Remove(filepath.Join(dir, name))
+	}
+
 	return fuse.OK
 }
 
@@ -145,6 +173,27 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 		}
 
 		child.NewChild("ERROR", false, &dataNode{nodefs.NewDefaultNode(), []byte(err.Error())})
+	} else {
+		if dir := c.root.options.ManifestDir; dir != "" {
+			for {
+				f, err := ioutil.TempFile(dir, "")
+				if err != nil {
+					break
+				}
+
+				_, err = f.Write(mfBytes)
+				if err != nil {
+					break
+				}
+
+				if err := f.Close(); err != nil {
+					break
+				}
+
+				os.Rename(f.Name(), filepath.Join(dir, name))
+				break
+			}
+		}
 	}
 
 	c.root.fsConn.EntryNotify(c.root.Inode(), name)
