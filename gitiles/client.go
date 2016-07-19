@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"path"
 
+	"github.com/google/slothfs/cookie"
 	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 )
@@ -53,6 +54,23 @@ type Options struct {
 
 	// UserAgent defines how we present ourself to the server.
 	UserAgent string
+}
+
+func (o *Options) LoadCookieJar(nm string) error {
+	if nm == "" {
+		return nil
+	}
+
+	jar, err := cookie.NewJar(nm)
+	if err != nil {
+		return err
+	}
+	if err := cookie.WatchJar(jar, nm); err != nil {
+		return err
+	}
+
+	o.CookieJar = jar
+	return nil
 }
 
 // NewService returns a new Gitiles JSON client.

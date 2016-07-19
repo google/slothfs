@@ -19,13 +19,17 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 // ParseCookieJar parses a cURL/Mozilla/Netscape cookie jar text file.
@@ -74,21 +78,56 @@ func ParseCookieJar(r io.Reader) ([]*http.Cookie, error) {
 	return result, nil
 }
 
-func NewJar(path string) (http.CookieJar, error) {
+// WatchJar starts watching the given path for changes, and loads new
+// data from the file whenever it is available.
+func WatchJar(jar http.CookieJar, path string) error {
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	// We watch the dir, so we catch creation + rename events too.
+	if err := w.Add(filepath.Dir(path)); err != nil {
+		return err
+	}
+
+	go func() {
+		var lastMod time.Time
+		for {
+			select {
+			case <-w.Events:
+				fi, err := os.Stat(path)
+				if err != nil {
+					log.Printf("Stat(%s): %v", path, err)
+					continue
+				}
+				if fi.ModTime().Equal(lastMod) {
+					continue
+				}
+				lastMod = fi.ModTime()
+				if err := updateJar(jar, path); err != nil {
+					log.Printf("updateJar(%s): %v", path, err)
+				}
+
+			case <-w.Errors:
+				log.Printf("notify: %v", path, err)
+			}
+		}
+	}()
+	return nil
+}
+
+// updateJar reads the path into the jar.
+func updateJar(jar http.CookieJar, path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer f.Close()
 
 	cs, err := ParseCookieJar(f)
 	if err != nil {
-		return nil, err
-	}
-
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, c := range cs {
@@ -96,6 +135,21 @@ func NewJar(path string) (http.CookieJar, error) {
 			Scheme: "http",
 			Host:   c.Domain,
 		}, []*http.Cookie{c})
+	}
+
+	return nil
+}
+
+// NewJar reads cookies in the Mozilla/Netscape cookie file format,
+// and returns them as a CookieJar
+func NewJar(path string) (http.CookieJar, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := updateJar(jar, path); err != nil {
+		return nil, err
 	}
 
 	return jar, nil

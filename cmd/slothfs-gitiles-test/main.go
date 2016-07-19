@@ -25,7 +25,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/google/slothfs/cookie"
 	"github.com/google/slothfs/gitiles"
 )
 
@@ -46,12 +45,8 @@ func main() {
 	opts := gitiles.Options{
 		UserAgent: *agent,
 	}
-	if *cookieJarPath != "" {
-		var err error
-		opts.CookieJar, err = cookie.NewJar(*cookieJarPath)
-		if err != nil {
-			log.Fatal(err)
-		}
+	if err := opts.LoadCookieJar(*cookieJarPath); err != nil {
+		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
 	}
 
 	service, err := gitiles.NewService(*gitilesURL, opts)

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/slothfs/cache"
-	"github.com/google/slothfs/cookie"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -59,12 +58,8 @@ func main() {
 	gitilesOpts := gitiles.Options{
 		UserAgent: *agent,
 	}
-	if *cookieJarPath != "" {
-		var err error
-		gitilesOpts.CookieJar, err = cookie.NewJar(*cookieJarPath)
-		if err != nil {
-			log.Fatal(err)
-		}
+	if err := gitilesOpts.LoadCookieJar(*cookieJarPath); err != nil {
+		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
 	}
 
 	service, err := gitiles.NewService(*gitilesURL, gitilesOpts)

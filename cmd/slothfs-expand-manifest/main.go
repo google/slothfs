@@ -20,7 +20,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/google/slothfs/cookie"
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
 
@@ -42,16 +41,11 @@ func main() {
 	opts := gitiles.Options{
 		UserAgent: *agent,
 	}
-	if *cookieJarPath != "" {
-		var err error
-		opts.CookieJar, err = cookie.NewJar(*cookieJarPath)
-		if err != nil {
-			log.Fatal(err)
-		}
+
+	if err := opts.LoadCookieJar(*cookieJarPath); err != nil {
+		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
 	}
 
-	// SustainedQPS is a little high, but since this is a one-shot
-	// program let's try to get away with it.
 	service, err := gitiles.NewService(*gitilesURL, opts)
 	if err != nil {
 		log.Fatalf("NewService: %v", err)
