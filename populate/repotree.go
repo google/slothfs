@@ -28,7 +28,7 @@ import (
 	git "github.com/libgit2/git2go"
 
 	"github.com/google/slothfs/gitiles"
-	"github.com/hanwen/gitfs/manifest"
+	"github.com/google/slothfs/manifest"
 )
 
 // fileInfo holds data files contained in the git repository within a
