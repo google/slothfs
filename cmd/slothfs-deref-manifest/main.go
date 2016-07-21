@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/slothfs/manifest"
-	"github.com/libgit2/git2go"
+	git "github.com/libgit2/git2go"
 )
 
 func main() {
