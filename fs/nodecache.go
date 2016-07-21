@@ -17,7 +17,7 @@ package fs
 import (
 	"sync"
 
-	"github.com/libgit2/git2go"
+	git "github.com/libgit2/git2go"
 )
 
 type nodeCacheKey struct {
