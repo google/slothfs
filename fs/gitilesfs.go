@@ -278,11 +278,11 @@ func (n *dataNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Conte
 	return fuse.OK
 }
 
-func (d *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.Status) {
-	return nodefs.NewDataFile(d.data), fuse.OK
+func (n *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.Status) {
+	return nodefs.NewDataFile(n.data), fuse.OK
 }
 
-func (d *dataNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+func (n *dataNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
 	return nil, fuse.ENODATA
 }
 
@@ -312,7 +312,7 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 
 func (r *gitilesRoot) Deletable() bool { return false }
 
-func (n *gitilesRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+func (r *gitilesRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
 	return nil, fuse.ENODATA
 }
 

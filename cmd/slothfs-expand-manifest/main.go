@@ -122,7 +122,7 @@ func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.M
 		branch := mf.ProjectRevision(p)
 		commit, ok := proj.Branches[branch]
 		if !ok {
-			return fmt.Errorf("branch %q for repo %s not returned.", branch, p.Name)
+			return fmt.Errorf("branch %q for repo %s not returned", branch, p.Name)
 		}
 
 		p.Revision = commit

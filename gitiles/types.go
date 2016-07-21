@@ -16,6 +16,7 @@ package gitiles
 
 import "fmt"
 
+// Project describes a repository
 type Project struct {
 	Name        string
 	CloneURL    string            `json:"clone_url"`
@@ -23,6 +24,7 @@ type Project struct {
 	Branches    map[string]string `json:"branches"`
 }
 
+// Person describes a committer or author.
 type Person struct {
 	Name  string
 	Email string
@@ -31,6 +33,7 @@ type Person struct {
 	Time string
 }
 
+// DiffEntry describes a file difference.
 type DiffEntry struct {
 	Type    string
 	OldID   string `json:"old_id"`
@@ -41,6 +44,7 @@ type DiffEntry struct {
 	NewPath string `json:"new_path"`
 }
 
+// Commit describes a git commit.
 type Commit struct {
 	Commit    string
 	Tree      string
@@ -51,11 +55,13 @@ type Commit struct {
 	TreeDiff  []DiffEntry `json:"tree_diff"`
 }
 
+// Log holds the output of a revwalk.
 type Log struct {
 	Log  []Commit
 	Next string
 }
 
+// BlameRegion represents a attribution of a file range.
 type BlameRegion struct {
 	Start  int
 	Count  int
@@ -64,10 +70,12 @@ type BlameRegion struct {
 	Author Person
 }
 
+// Blame represents all of the BlameRegions in a file.
 type Blame struct {
 	Regions []BlameRegion
 }
 
+// TreeEntry holds a single entry in a tree.
 type TreeEntry struct {
 	Mode int
 	Type string
@@ -90,6 +98,7 @@ func (e *TreeEntry) String() string {
 	return s
 }
 
+// Tree holds a (possibly recursively expanded) tree.
 type Tree struct {
 	ID      string
 	Entries []TreeEntry

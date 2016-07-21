@@ -26,7 +26,7 @@ type configEntry struct {
 	Clone bool
 }
 
-// Reads a JSON file containing clone options
+// ReadConfig reads a JSON file containing clone options
 func ReadConfig(contents []byte) (repo []CloneOption, file []CloneOption, err error) {
 	var cfg []configEntry
 	if err := json.Unmarshal(contents, &cfg); err != nil {

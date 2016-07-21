@@ -63,11 +63,11 @@ func (r *multiManifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	r.Inode().NewChild("config", true, cfg)
 
 	if err := cfg.configureWorkspaces(); err != nil {
-		log.Println("configureWorkspaces: %v", err)
+		log.Printf("configureWorkspaces: %v", err)
 	}
 }
 
-func (r *configNode) Deletable() bool { return false }
+func (c *configNode) Deletable() bool { return false }
 
 func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions) *multiManifestFSRoot {
 	r := &multiManifestFSRoot{
@@ -105,7 +105,7 @@ func (c *configEntryNode) Readlink(ctx *fuse.Context) ([]byte, fuse.Status) {
 	return c.link, fuse.OK
 }
 
-func (r *configEntryNode) Deletable() bool { return false }
+func (c *configEntryNode) Deletable() bool { return false }
 
 func (c *configNode) Unlink(name string, ctx *fuse.Context) fuse.Status {
 	child := c.root.Inode().RmChild(name)
@@ -167,7 +167,7 @@ func (c *configNode) Symlink(name, content string, ctx *fuse.Context) (*nodefs.I
 	})
 
 	if err := fs.(*manifestFSRoot).onMount(c.root.fsConn); err != nil {
-		log.Println("onMount(%s): %v", name, err)
+		log.Printf("onMount(%s): %v", name, err)
 		for k := range child.Children() {
 			child.RmChild(k)
 		}

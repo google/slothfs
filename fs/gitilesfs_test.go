@@ -734,7 +734,7 @@ func TestMultiFSBasic(t *testing.T) {
 	}
 
 	if got, err := os.Readlink(configName); err != nil {
-		t.Fatalf("Readlink(%s): %", configName, err)
+		t.Fatalf("Readlink(%s): %v", configName, err)
 	} else if want := "../ws/.slothfs/manifest.xml"; got != want {
 		t.Errorf("got link %s, want %s", got, want)
 	}
@@ -787,7 +787,7 @@ func TestMultiFSManifestDir(t *testing.T) {
 
 	wsDir := filepath.Join(fix.mntDir, "ws")
 	if _, err := os.Lstat(wsDir); err != nil {
-		t.Fatalf("Lstat(%s): %v", wsDir)
+		t.Fatalf("Lstat(%s): %v", wsDir, err)
 	}
 
 	if err := os.Remove(filepath.Join(fix.mntDir, "config", "ws")); err != nil {

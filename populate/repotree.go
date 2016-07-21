@@ -220,7 +220,7 @@ func isRepoDir(path string) bool {
 }
 
 // construct fills `parent` looking through `dir` subdir of `repoRoot`.
-func (parent *repoTree) fill(repoRoot, dir string) error {
+func (t *repoTree) fill(repoRoot, dir string) error {
 	entries, err := ioutil.ReadDir(filepath.Join(repoRoot, dir))
 	if err != nil {
 		log.Println(repoRoot, err)
@@ -241,13 +241,13 @@ func (parent *repoTree) fill(repoRoot, dir string) error {
 		if e.IsDir() {
 			if newRoot := filepath.Join(repoRoot, subName); isRepoDir(newRoot) {
 				ch := makeRepoTree()
-				parent.children[subName] = ch
+				t.children[subName] = ch
 				todo[newRoot] = ch
 			} else {
-				parent.fill(repoRoot, subName)
+				t.fill(repoRoot, subName)
 			}
 		} else {
-			parent.entries[subName] = &fileInfo{}
+			t.entries[subName] = &fileInfo{}
 		}
 	}
 

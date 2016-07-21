@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// populate holds the code to augment a partial R/W checkout with a
-// symlink forest into a SlothFS workspace.
+// Package populate holds the code to augment a partial R/W checkout
+// with a symlink forest into a SlothFS workspace.
 package populate
 
 import (

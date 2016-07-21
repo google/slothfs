@@ -36,6 +36,7 @@ type Options struct {
 	FetchFrequency time.Duration
 }
 
+// NewCache sets up a Cache instance according to the given options.
 func NewCache(d string, opts Options) (*Cache, error) {
 	if opts.FetchFrequency == 0 {
 		opts.FetchFrequency = 12 * time.Hour

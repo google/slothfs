@@ -56,6 +56,8 @@ type Options struct {
 	UserAgent string
 }
 
+// LoadCookieJar sets up a cookiejar file to load and watch for
+// changes.
 func (o *Options) LoadCookieJar(nm string) error {
 	if nm == "" {
 		return nil
@@ -173,6 +175,7 @@ func (s *Service) List(branches []string) (map[string]*Project, error) {
 	return projects, err
 }
 
+// NewRepoService creates a service for a specific repository on a Gitiles server.
 func (s *Service) NewRepoService(name string) *RepoService {
 	return &RepoService{
 		Name:    name,

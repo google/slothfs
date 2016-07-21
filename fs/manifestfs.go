@@ -80,23 +80,23 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 	return root, nil
 }
 
-func (fs *manifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
-	if err := fs.onMount(fsConn); err != nil {
+func (r *manifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
+	if err := r.onMount(fsConn); err != nil {
 		log.Printf("onMount: %v", err)
-		for k := range fs.Inode().Children() {
-			fs.Inode().RmChild(k)
+		for k := range r.Inode().Children() {
+			r.Inode().RmChild(k)
 		}
 
-		fs.Inode().NewChild("ERROR", false, newDataNode([]byte(err.Error())))
+		r.Inode().NewChild("ERROR", false, newDataNode([]byte(err.Error())))
 	}
 
 	// Don't need the trees anymore.
-	fs.trees = nil
+	r.trees = nil
 }
 
-func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
+func (r *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	var byDepth [][]string
-	for p := range fs.trees {
+	for p := range r.trees {
 		d := len(strings.Split(p, "/"))
 		for len(byDepth) <= d {
 			byDepth = append(byDepth, nil)
@@ -107,8 +107,8 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 	clonablePaths := map[string]bool{}
 	revmap := map[string]*manifest.Project{}
-	for i, p := range fs.options.Manifest.Project {
-		revmap[p.Path] = &fs.options.Manifest.Project[i]
+	for i, p := range r.options.Manifest.Project {
+		revmap[p.Path] = &r.options.Manifest.Project[i]
 
 		if p.CloneDepth == "" {
 			clonablePaths[p.Path] = true
@@ -120,7 +120,7 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	for _, ps := range byDepth {
 		for _, p := range ps {
 			dir, base := filepath.Split(p)
-			parent, left := fsConn.Node(fs.Inode(), dir)
+			parent, left := fsConn.Node(r.Inode(), dir)
 			for _, c := range left {
 				ch := parent.NewChild(c, true, newDirNode())
 				parent = ch
@@ -128,7 +128,7 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 			clone, ok := clonablePaths[p]
 			if !ok {
-				for _, e := range fs.options.RepoCloneOption {
+				for _, e := range r.options.RepoCloneOption {
 					if e.RE.FindString(p) != "" {
 						clone = e.Clone
 						break
@@ -141,16 +141,16 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 				cloneURL = ""
 			}
 
-			repoService := fs.service.NewRepoService(revmap[p].Name)
+			repoService := r.service.NewRepoService(revmap[p].Name)
 
 			opts := GitilesOptions{
 				Revision:    revmap[p].Revision,
 				CloneURL:    cloneURL,
-				CloneOption: fs.options.FileCloneOption,
+				CloneOption: r.options.FileCloneOption,
 			}
 
-			subRoot := NewGitilesRoot(fs.cache, fs.trees[p], repoService, opts)
-			subRoot.(*gitilesRoot).nodeCache = fs.nodeCache
+			subRoot := NewGitilesRoot(r.cache, r.trees[p], repoService, opts)
+			subRoot.(*gitilesRoot).nodeCache = r.nodeCache
 			parent.NewChild(base, true, subRoot)
 			if err := subRoot.(*gitilesRoot).onMount(fsConn); err != nil {
 				return fmt.Errorf("onMount(%s): %v", p, err)
@@ -160,14 +160,14 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 	// Do Linkfile, Copyfile after setting up the repos, so we
 	// have directories to attach the copy/link nodes to.
-	for _, p := range fs.options.Manifest.Project {
+	for _, p := range r.options.Manifest.Project {
 		for _, cp := range p.Copyfile {
-			srcNode, left := fsConn.Node(fs.Inode(), filepath.Join(p.Path, cp.Src))
+			srcNode, left := fsConn.Node(r.Inode(), filepath.Join(p.Path, cp.Src))
 			if len(left) > 0 {
 				return fmt.Errorf("Copyfile(%s): source %s does not exist", p.Name, cp.Src)
 			}
 
-			dir, left := fsConn.Node(fs.Inode(), cp.Dest)
+			dir, left := fsConn.Node(r.Inode(), cp.Dest)
 			switch len(left) {
 			case 0:
 				return fmt.Errorf("Copyfile(%s): dest %s already exists.", p.Name, cp.Dest)
@@ -180,7 +180,7 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		}
 
 		for _, lf := range p.Linkfile {
-			dir, left := fsConn.Node(fs.Inode(), lf.Dest)
+			dir, left := fsConn.Node(r.Inode(), lf.Dest)
 			switch len(left) {
 			case 0:
 				return fmt.Errorf("Linkfile(%s): dest %s already exists.", p.Name, lf.Dest)
@@ -200,8 +200,8 @@ func (fs *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		}
 	}
 
-	metaNode := fs.Inode().NewChild(".slothfs", true, newDirNode())
-	metaNode.NewChild("manifest.xml", false, newDataNode(fs.manifestXML))
+	metaNode := r.Inode().NewChild(".slothfs", true, newDirNode())
+	metaNode.NewChild("manifest.xml", false, newDataNode(r.manifestXML))
 
 	var tree gitiles.Tree
 	treeContent, err := json.Marshal(tree)

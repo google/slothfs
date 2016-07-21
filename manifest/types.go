@@ -72,10 +72,6 @@ type Default struct {
 	SyncS      string `xml:"sync-s,attr"`
 }
 
-type ManifestServer struct {
-	URL string `xml:"url,attr"`
-}
-
 // Manifest holds the entire manifest, describing a set of git
 // projects to be stitched together
 type Manifest struct {

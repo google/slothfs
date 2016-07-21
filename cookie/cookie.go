@@ -110,7 +110,7 @@ func WatchJar(jar http.CookieJar, path string) error {
 				}
 
 			case <-w.Errors:
-				log.Printf("notify: %v", path, err)
+				log.Printf("notify (%s):  %v", path, err)
 			}
 		}
 	}()
