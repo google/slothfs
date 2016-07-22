@@ -97,6 +97,10 @@ func WatchJar(jar http.CookieJar, path string) error {
 			select {
 			case <-w.Events:
 				fi, err := os.Stat(path)
+				if os.IsNotExist(err) {
+					continue
+				}
+
 				if err != nil {
 					log.Printf("Stat(%s): %v", path, err)
 					continue
