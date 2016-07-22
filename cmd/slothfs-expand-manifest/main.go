@@ -27,26 +27,12 @@ import (
 )
 
 func main() {
-	gitilesURL := flag.String("gitiles", "", "URL for gitiles")
+	gitilesOptions := gitiles.DefineFlags()
 	branch := flag.String("branch", "master", "branch to use for manifest")
 	repo := flag.String("repo", "platform/manifest", "manifest repository")
-	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
-	agent := flag.String("agent", "slothfs-expand", "gitiles User-Agent string to use.")
 	flag.Parse()
 
-	if *gitilesURL == "" {
-		log.Fatal("must set --gitiles")
-	}
-
-	opts := gitiles.Options{
-		UserAgent: *agent,
-	}
-
-	if err := opts.LoadCookieJar(*cookieJarPath); err != nil {
-		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
-	}
-
-	service, err := gitiles.NewService(*gitilesURL, opts)
+	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
 		log.Fatalf("NewService: %v", err)
 	}

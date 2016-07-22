@@ -29,19 +29,14 @@ import (
 )
 
 func main() {
-	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
 	config := flag.String("config", filepath.Join(os.Getenv("HOME"), ".config", "slothfs"), "directory with configuration files.")
-	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
-	agent := flag.String("agent", "slothfs-multifs", "gitiles User-Agent string to use.")
+	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 
 	if *cacheDir == "" {
 		log.Fatal("must set --cache")
-	}
-	if *gitilesURL == "" {
-		log.Fatal("must set --gitiles")
 	}
 
 	if len(flag.Args()) < 1 {
@@ -55,14 +50,7 @@ func main() {
 		log.Printf("NewCache: %v", err)
 	}
 
-	gitilesOpts := gitiles.Options{
-		UserAgent: *agent,
-	}
-	if err := gitilesOpts.LoadCookieJar(*cookieJarPath); err != nil {
-		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
-	}
-
-	service, err := gitiles.NewService(*gitilesURL, gitilesOpts)
+	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}

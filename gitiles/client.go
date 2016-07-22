@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -37,6 +38,7 @@ type Service struct {
 	addr    url.URL
 	client  http.Client
 	agent   string
+	jar     http.CookieJar
 }
 
 // Addr returns the address of the gitiles service.
@@ -44,39 +46,47 @@ func (s *Service) Addr() string {
 	return s.addr.String()
 }
 
-// Options specifies how much load we can put on remote Gitiles servers.
+// Options configures the the Gitiles service.
 type Options struct {
+	// A URL for the Gitiles service.
+	Address string
+
 	BurstQPS     int
 	SustainedQPS float64
 
-	// A writable cookie jar for storing (among others) authentication cookies.
-	CookieJar http.CookieJar
+	// Path to a Netscape/Mozilla style cookie file.
+	CookieJar string
 
 	// UserAgent defines how we present ourself to the server.
 	UserAgent string
 }
 
-// LoadCookieJar sets up a cookiejar file to load and watch for
-// changes.
-func (o *Options) LoadCookieJar(nm string) error {
-	if nm == "" {
-		return nil
-	}
+var defaultOptions Options
 
-	jar, err := cookie.NewJar(nm)
-	if err != nil {
-		return err
-	}
-	if err := cookie.WatchJar(jar, nm); err != nil {
-		return err
-	}
-
-	o.CookieJar = jar
-	return nil
+// DefineFlags sets up standard command line flags, and returns the
+// options struct in which the values are put.
+func DefineFlags() *Options {
+	flag.StringVar(&defaultOptions.Address, "gitiles_url", "https://android.googlesource.com", "URL of the gitiles service.")
+	flag.StringVar(&defaultOptions.CookieJar, "gitiles_cookies", "", "path to cURL-style cookie jar file.")
+	flag.StringVar(&defaultOptions.UserAgent, "gitiles_agent", "slothfs", "gitiles User-Agent string to use.")
+	flag.IntVar(&defaultOptions.BurstQPS, "gitiles_qps", 4, "maximum Gitiles QPS")
+	return &defaultOptions
 }
 
 // NewService returns a new Gitiles JSON client.
-func NewService(addr string, opts Options) (*Service, error) {
+func NewService(opts Options) (*Service, error) {
+	var jar http.CookieJar
+	if nm := opts.CookieJar; nm != "" {
+		var err error
+		jar, err = cookie.NewJar(nm)
+		if err != nil {
+			return nil, err
+		}
+		if err := cookie.WatchJar(jar, nm); err != nil {
+			return nil, err
+		}
+	}
+
 	if opts.BurstQPS == 0 {
 		opts.BurstQPS = 4
 	}
@@ -84,7 +94,7 @@ func NewService(addr string, opts Options) (*Service, error) {
 		opts.SustainedQPS = 0.5
 	}
 
-	url, err := url.Parse(addr)
+	url, err := url.Parse(opts.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +104,7 @@ func NewService(addr string, opts Options) (*Service, error) {
 		agent:   opts.UserAgent,
 	}
 
-	s.client.Jar = opts.CookieJar
+	s.client.Jar = jar
 	s.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		req.Header.Set("User-Agent", s.agent)
 		return nil

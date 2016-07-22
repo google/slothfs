@@ -29,27 +29,14 @@ import (
 )
 
 func main() {
-	gitilesURL := flag.String("gitiles", "", "URL for gitiles")
-	cookieJarPath := flag.String("cookies", "", "path to cURL-style cookie jar file.")
-	agent := flag.String("agent", "slothfs-expand", "gitiles User-Agent string to use.")
 	tap := flag.Bool("tap", false, "if set, tap traffic exchanged with $http_proxy")
+	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 
 	if *tap {
 		tapTraffic()
 	}
-	if *gitilesURL == "" {
-		log.Fatal("must set --gitiles")
-	}
-
-	opts := gitiles.Options{
-		UserAgent: *agent,
-	}
-	if err := opts.LoadCookieJar(*cookieJarPath); err != nil {
-		log.Fatalf("LoadCookieJar(%s): %v", *cookieJarPath, err)
-	}
-
-	service, err := gitiles.NewService(*gitilesURL, opts)
+	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
 		log.Fatalf("NewService: %v", err)
 	}

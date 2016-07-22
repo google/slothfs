@@ -31,10 +31,10 @@ import (
 
 func main() {
 	manifestPath := flag.String("manifest", "", "expanded manifest file path")
-	gitilesURL := flag.String("gitiles", "", "gitiles URL. If unset, derive from manifest location.")
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
 	debug := flag.Bool("debug", false, "print debug info")
 	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
+	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 
 	if *manifestPath == "" {
@@ -43,12 +43,9 @@ func main() {
 	if *cacheDir == "" {
 		log.Fatal("must set --cache")
 	}
-	if *gitilesURL == "" {
-		log.Fatal("must set --gitiles")
-	}
 
 	if len(flag.Args()) < 1 {
-		log.Fatal("usage: main -gitiles URL -repo REPO [-branch BRANCH] MOUNT-POINT")
+		log.Fatal("mountpoint argument missing.")
 	}
 	mntDir := flag.Arg(0)
 
@@ -57,7 +54,7 @@ func main() {
 		log.Printf("NewCache: %v", err)
 	}
 
-	service, err := gitiles.NewService(*gitilesURL, gitiles.Options{})
+	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}

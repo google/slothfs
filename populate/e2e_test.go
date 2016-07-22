@@ -115,7 +115,9 @@ func newFixture() (*fixture, error) {
 	}
 	go abortListener(fix.abortGitiles)
 
-	service, err := gitiles.NewService(fmt.Sprintf("http://%s/", fix.abortGitiles.Addr()), gitiles.Options{})
+	service, err := gitiles.NewService(gitiles.Options{
+		Address: fmt.Sprintf("http://%s/", fix.abortGitiles.Addr()),
+	})
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}

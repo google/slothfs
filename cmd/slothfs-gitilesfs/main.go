@@ -28,11 +28,11 @@ import (
 )
 
 func main() {
-	url := flag.String("gitiles", "", "URL of gitiles service")
 	branch := flag.String("branch", "master", "branch name")
 	repo := flag.String("repo", "", "repository name")
 	debug := flag.Bool("debug", false, "print debug info")
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
+	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 
 	if *cacheDir == "" {
@@ -48,7 +48,7 @@ func main() {
 		log.Printf("NewCache: %v", err)
 	}
 
-	service, err := gitiles.NewService(*url, gitiles.Options{})
+	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
 		log.Printf("NewService: %v", err)
 	}
