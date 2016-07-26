@@ -17,8 +17,12 @@ package cache
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
+
+	git "github.com/libgit2/git2go"
 )
 
 func TestGitCache(t *testing.T) {
@@ -66,5 +70,49 @@ func TestGitCache(t *testing.T) {
 
 	if r := cache.OpenLocal(url); r == nil {
 		t.Errorf("OpenLocal(%s) failed", url)
+	}
+}
+
+func TestThreadSafety(t *testing.T) {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("TempDir %v", err)
+	}
+
+	cmd := exec.Command("/bin/sh", "-euxc",
+		strings.Join([]string{
+			"cd " + dir,
+			"git init",
+			"touch file",
+			"git add file",
+			"git commit -m msg file",
+		}, " && "))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		t.Errorf("%s: %v", cmd.Args, err)
+	}
+
+	type res struct {
+		err  error
+		repo *git.Repository
+	}
+
+	// The following parallel code will generate TSAN errors if
+	// libgit2 was not compiled with -DGIT_THREADS.
+	done := make(chan res, 10)
+	for i := 0; i < cap(done); i++ {
+		go func() {
+			repo, err := git.OpenRepository(dir + "/.git")
+			done <- res{err, repo}
+		}()
+	}
+
+	for i := 0; i < cap(done); i++ {
+		r := <-done
+		if r.err != nil {
+			t.Errorf("OpenRepository: %v", err)
+		}
+		defer r.repo.Free()
 	}
 }
