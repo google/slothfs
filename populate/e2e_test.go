@@ -235,7 +235,7 @@ func TestBrokenWorkspaceLink(t *testing.T) {
 	if _, changed, err := Checkout(m1, ws); err != nil {
 		t.Fatalf("Checkout(m1): %v", err)
 	} else if len(changed) > 0 {
-		t.Errorf("Got changed files %v relative to broken link.")
+		t.Errorf("Got changed files %v relative to broken link", changed)
 	}
 }
 
