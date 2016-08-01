@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -29,7 +30,9 @@ import (
 	git "github.com/libgit2/git2go"
 )
 
-// gitCache manages a set of bare git repositories.
+// gitCache manages a set of bare git repositories.  Repositories are
+// recognized by URLs. Port numbers in git URLs are not part of the
+// cache key.
 type gitCache struct {
 	// directory to hold the repositories.
 	dir string
@@ -112,6 +115,10 @@ func (c *gitCache) gitPath(u string) (string, error) {
 		return "", err
 	}
 
+	if h, _, err := net.SplitHostPort(parsed.Host); err == nil {
+		parsed.Host = h
+	}
+
 	p := path.Clean(parsed.Path)
 	if path.Base(p) == ".git" {
 		p = path.Dir(p)
@@ -158,7 +165,6 @@ func (c *gitCache) OpenLocal(url string) *git.Repository {
 	if err != nil {
 		return nil
 	}
-
 	repo, err := git.OpenRepository(p)
 	if err != nil {
 		return nil

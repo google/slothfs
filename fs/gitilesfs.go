@@ -239,12 +239,13 @@ func (r *gitilesRoot) fetchFileExpensive(id git.Oid, clone bool) error {
 	var content []byte
 	if repo != nil {
 		blob, err := repo.LookupBlob(&id)
-		if err != nil {
-			return err
+		if err == nil {
+			content = blob.Contents()
+			blob.Free()
 		}
-		defer blob.Free()
-		content = blob.Contents()
-	} else {
+	}
+
+	if content == nil {
 		path := r.shaMap[id]
 
 		var err error

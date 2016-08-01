@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -68,7 +69,8 @@ const testManifestXML = `<?xml version="1.0" encoding="UTF-8"?>
   <default revision="master"
            remote="aosp"
            sync-j="4" />
-  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" revision="ce34badf691d36e8048b63f89d1a86ee5fa4325c">
+  <project path="build/kati" name="platform/build/kati" groups="pdk,tradefed" revision="ce34badf691d36e8048b63f89d1a86ee5fa4325c"
+            clone-url="http://localhost/platform/platform/build/kati" >
     <copyfile dest="build/copydest" src="AUTHORS" />
     <linkfile dest="build/linkdest" src="AUTHORS" />
   </project>
@@ -159,6 +161,7 @@ var testGitiles = map[string]string{
 }
 
 type testServer struct {
+	addr     string
 	listener net.Listener
 	mu       sync.Mutex
 	requests map[string]int
@@ -189,14 +192,17 @@ func (s *testServer) handleStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 func newTestServer() (*testServer, error) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return nil, err
 	}
 
+	addr := listener.Addr().(*net.TCPAddr)
+
 	ts := &testServer{
 		listener: listener,
 		requests: map[string]int{},
+		addr:     fmt.Sprintf("localhost:%d", addr.Port),
 	}
 
 	mux := http.NewServeMux()
@@ -209,6 +215,48 @@ func newTestServer() (*testServer, error) {
 	go s.Serve(ts.listener)
 
 	return ts, err
+}
+
+func TestGitilesFSNotInGit(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	// Add a git repo; this doesn't have the requested blob.
+	cmd := exec.Command("/bin/sh", "-c",
+		strings.Join([]string{
+			"mkdir -p localhost/platform/build/kati.git",
+			"cd localhost/platform/build/kati.git",
+			"git init",
+			"touch file",
+			"git add file",
+			"git commit -m msg -a"}, " && "))
+	cmd.Dir = filepath.Join(fix.dir, "cache", "git")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("create repo: %v, out: %s", err, string(out))
+	}
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	options := GitilesOptions{
+		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
+		CloneURL: fmt.Sprintf("http://%s/platform/build/kati", fix.testServer.addr),
+	}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	if _, err := ioutil.ReadFile(filepath.Join(fix.mntDir, "AUTHORS")); err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
 }
 
 func TestGitilesFSSharedNodes(t *testing.T) {
@@ -640,7 +688,7 @@ func newTestFixture() (*testFixture, error) {
 	}
 
 	fixture.service, err = gitiles.NewService(gitiles.Options{
-		Address: fmt.Sprintf("http://%s", fixture.testServer.listener.Addr().String()),
+		Address: fmt.Sprintf("http://%s", fixture.testServer.addr),
 	})
 	if err != nil {
 		return nil, err
