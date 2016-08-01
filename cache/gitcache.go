@@ -88,8 +88,13 @@ func (c *gitCache) Fetch(dir string) error {
 
 // FetchAll finds all known repos and runs git-fetch on them.
 func (c *gitCache) FetchAll() error {
+	dir, err := filepath.EvalSymlinks(c.dir)
+	if err != nil {
+		return err
+	}
+
 	var dirs []string
-	if err := filepath.Walk(c.dir, func(n string, fi os.FileInfo, err error) error {
+	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
 		if fi.IsDir() && strings.HasSuffix(n, ".git") {
 			dirs = append(dirs, n)
 			return filepath.SkipDir
