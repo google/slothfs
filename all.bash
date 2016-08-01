@@ -25,7 +25,7 @@ cmd/slothfs-multifs \
 cmd/slothfs-manifestfs \
 cmd/slothfs-populate \
 cmd/slothfs-gitilesfs \
-cmd/slothfs-deref-manifest \
+cmd/slothfs-deref-repo \
 cmd/slothfs-gitiles-test \
   ; do
   p=github.com/google/slothfs/${sub}
