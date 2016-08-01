@@ -69,7 +69,7 @@ func DefineFlags() *Options {
 	flag.StringVar(&defaultOptions.Address, "gitiles_url", "https://android.googlesource.com", "URL of the gitiles service.")
 	flag.StringVar(&defaultOptions.CookieJar, "gitiles_cookies", "", "path to cURL-style cookie jar file.")
 	flag.StringVar(&defaultOptions.UserAgent, "gitiles_agent", "slothfs", "gitiles User-Agent string to use.")
-	flag.IntVar(&defaultOptions.BurstQPS, "gitiles_qps", 4, "maximum Gitiles QPS")
+	flag.IntVar(&defaultOptions.SustainedQPS, "gitiles_qps", 4, "maximum Gitiles QPS")
 	return &defaultOptions
 }
 
