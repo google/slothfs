@@ -119,12 +119,13 @@ func createLinks(ro, rw *repoTree, roRoot, rwRoot string) error {
 	return nil
 }
 
-// clearLinks removes all symlinks to the RO tree. It returns the workspace name that was linked before.
-func clearLinks(mount, dir string) (string, error) {
+// clearLinks removes all symlinks to the RO tree. It returns the workspace names that were linked before.
+func clearLinks(mount, dir string) (map[string]struct{}, error) {
 	mount = filepath.Clean(mount)
 
-	var prefix string
 	var dirs []string
+
+	prevPrefixes := map[string]struct{}{}
 	if err := filepath.Walk(dir, func(n string, fi os.FileInfo, err error) error {
 		if fi == nil {
 			return fmt.Errorf("Walk %s: nil fileinfo for %s", dir, n)
@@ -135,7 +136,7 @@ func clearLinks(mount, dir string) (string, error) {
 				return err
 			}
 			if strings.HasPrefix(target, mount) {
-				prefix = target
+				prevPrefixes[trimMount(target, mount)] = struct{}{}
 				if err := os.Remove(n); err != nil {
 					return err
 				}
@@ -146,22 +147,27 @@ func clearLinks(mount, dir string) (string, error) {
 		}
 		return nil
 	}); err != nil {
-		return "", fmt.Errorf("Walk %s: %v", dir, err)
+		return nil, fmt.Errorf("Walk %s: %v", dir, err)
 	}
 
-	// Reverse the ordering, so we get the deepest subdirs first.
 	sort.Strings(dirs)
 	for i := range dirs {
+		// Reverse the ordering, so we get the deepest subdirs first.
 		d := dirs[len(dirs)-1-i]
 		// Ignore error: dir may still contain entries.
 		os.Remove(d)
 	}
 
-	prefix = strings.TrimPrefix(prefix, mount+"/")
-	if i := strings.Index(prefix, "/"); i != -1 {
-		prefix = prefix[:i]
+	return prevPrefixes, nil
+}
+
+func trimMount(dir, mount string) string {
+	dir = strings.TrimPrefix(dir, mount+"/")
+	if i := strings.Index(dir, "/"); i != -1 {
+		dir = dir[:i]
 	}
-	return prefix, nil
+
+	return dir
 }
 
 // Returns the filenames (as relative paths) in newDir that have
@@ -192,18 +198,26 @@ func changedFiles(oldInfos map[string]*fileInfo, newInfos map[string]*fileInfo) 
 // Returns the files that should be touched.
 func Checkout(ro, rw string) (added, changed []string, err error) {
 	ro = filepath.Clean(ro)
-	wsName, err := clearLinks(filepath.Dir(ro), rw)
+	wsNames, err := clearLinks(filepath.Dir(ro), rw)
 	if err != nil {
 		return nil, nil, err
 	}
-	oldRoot := filepath.Join(filepath.Dir(ro), wsName)
+
+	oldRoot := ""
+	for nm := range wsNames {
+		r := filepath.Join(filepath.Dir(ro), nm)
+		if _, err := os.Stat(r); err == nil && r != ro {
+			oldRoot = r
+			break
+		}
+	}
 
 	// Do the file system traversals in parallel.
 	errs := make(chan error, 3)
 	var rwTree, roTree *repoTree
 	var oldInfos map[string]*fileInfo
 
-	if wsName != "" {
+	if oldRoot != "" {
 		go func() {
 			t, err := repoTreeFromSlothFS(oldRoot)
 			if t != nil {

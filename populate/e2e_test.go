@@ -186,6 +186,59 @@ func TestCopyEntries(t *testing.T) {
 
 }
 
+func TestBrokenWorkspaceLink(t *testing.T) {
+	fixture, err := newFixture()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Cleanup()
+
+	// We avoid talking to gitiles by inserting entries into the
+	// cache manually.
+	if err := fixture.cache.Tree.Add(gitID(ids[0]), &gitiles.Tree{
+		ID: ids[0],
+		Entries: []gitiles.TreeEntry{
+			{
+				Mode: 0100644,
+				Name: "a",
+				Type: "blob",
+				ID:   ids[1],
+				Size: newInt(42),
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i <= 1; i++ {
+		if err := fixture.addWorkspace(fmt.Sprintf("m%d", i), &manifest.Manifest{
+			Project: []manifest.Project{{
+				Name:     "platform/project",
+				Path:     "p",
+				Revision: ids[0],
+			}}}); err != nil {
+			t.Fatalf("addWorkspace(%d): %v", i, err)
+		}
+	}
+
+	ws := filepath.Join(fixture.dir, "ws")
+	m0 := filepath.Join(fixture.dir, "mnt", "m0")
+	if _, _, err := Checkout(m0, ws); err != nil {
+		t.Fatalf("Checkout(m0): %v", err)
+	}
+
+	if err := os.Remove(filepath.Join(fixture.dir, "mnt", "config", "m0")); err != nil {
+		log.Fatalf("Remove: %v", err)
+	}
+
+	m1 := filepath.Join(fixture.dir, "mnt", "m1")
+	if _, changed, err := Checkout(m1, ws); err != nil {
+		t.Fatalf("Checkout(m1): %v", err)
+	} else if len(changed) > 0 {
+		t.Errorf("Got changed files %v relative to broken link.")
+	}
+}
+
 func TestFUSESymlink(t *testing.T) {
 	fixture, err := newFixture()
 	if err != nil {
