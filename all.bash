@@ -20,7 +20,7 @@ for sub in manifest \
   cache \
   fs \
   populate \
-cmd/slothfs-expand-manifest \
+cmd/slothfs-deref-manifest \
 cmd/slothfs-multifs \
 cmd/slothfs-manifestfs \
 cmd/slothfs-populate \

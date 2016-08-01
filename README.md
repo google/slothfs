@@ -11,13 +11,12 @@ To start the file system:
 
     go install github.com/google/slothfs/cmd/slothfs-multifs
     mkdir /tmp/mnt
-    slothfs-multifs -gitiles https://android.googlesource.com/ /tmp/mnt &
+    slothfs-multifs /tmp/mnt &
 
 To create a workspace "ws" corresponding to the latest manifest version
 
-    go install github.com/google/slothfs/cmd/slothfs-expand-manifest
-    slothfs-expand-manifest --gitiles https://android.googlesource.com/ \
-       > /tmp/m.xml &&
+    go install github.com/google/slothfs/cmd/slothfs-deref-manifest
+    slothfs-deref-manifest > /tmp/m.xml
     ln -s /tmp/m.xml /tmp/mnt/config/ws
 
 More details can be found in the [manual](docs/manual.md).

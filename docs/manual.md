@@ -46,9 +46,9 @@ The manifest describes which repositories go into an Android checkout. To make a
 file system out of this, we must decide at which exact revision each repository
 should be offered.
 
-This can be done with `slothfs-expand-manifest`, eg.
+This can be done with `slothfs-deref-manifest`, eg.
 
-    slothfs-expand-manifest > /tmp/m.xml
+    slothfs-deref-manifest > /tmp/m.xml
 
 
 Mounting the filesystem
@@ -99,7 +99,7 @@ Advancing your checkout to a different timestamp uses the same commands. To sync
 to the current state of the Android tree, do the following
 
     SYNC=$(date -Iminutes)
-    slothfs-expand-manifest > /tmp/${SYNC}.xml
+    slothfs-deref-manifest > /tmp/${SYNC}.xml
     ln -s /tmp/${SYNC}.xml /slothfs/config/${SYNC}
     slothfs-populate -ro /slothfs/${SYNC} .
 
