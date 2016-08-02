@@ -396,7 +396,7 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		clone := r.opts.CloneURL != ""
 		if clone {
 			for _, e := range r.opts.CloneOption {
-				if e.RE.FindString(p) != "" {
+				if e.RE.MatchString(p) {
 					clone = e.Clone
 					break
 				}
