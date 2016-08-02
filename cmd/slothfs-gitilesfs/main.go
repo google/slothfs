@@ -74,12 +74,10 @@ func main() {
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,
 		AttrTimeout:     time.Hour,
+		Debug:           *debug,
 	})
 	if err != nil {
 		log.Fatalf("MountFileSystem: %v", err)
-	}
-	if *debug {
-		server.SetDebug(true)
 	}
 	log.Printf("Started gitiles fs FUSE on %s", mntDir)
 	server.Serve()
