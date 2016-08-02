@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
@@ -46,10 +47,17 @@ func (c *configNode) configureWorkspaces() error {
 	}
 
 	log.Println("configuring workspaces...")
+	var wg sync.WaitGroup
+	wg.Add(len(fs))
 	for _, f := range fs {
-		_, code := c.Symlink(filepath.Base(f), f, nil)
-		log.Printf("manifest %s: %v", f, code)
+		go func(n string) {
+			_, code := c.Symlink(filepath.Base(n), n, nil)
+			log.Printf("manifest %s: %v", n, code)
+			wg.Done()
+		}(f)
 	}
+	wg.Wait()
+
 	return nil
 }
 
