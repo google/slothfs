@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -101,6 +102,9 @@ type gitilesNode struct {
 	// The timestamp is writable; protect it with a mutex.
 	mtimeMu sync.Mutex
 	mtime   time.Time
+
+	// This is to verify that FOPEN_KEEP_CACHE is working as expected.
+	readCount uint32
 }
 
 func (n *gitilesNode) Deletable() bool {
@@ -155,10 +159,18 @@ func (n *gitilesNode) Open(flags uint32, context *fuse.Context) (file nodefs.Fil
 	if err != nil {
 		return nil, fuse.ToStatus(err)
 	}
-	return nodefs.NewLoopbackFile(f), fuse.OK
+
+	return &nodefs.WithFlags{
+		File:      nodefs.NewLoopbackFile(f),
+		FuseFlags: fuse.FOPEN_KEEP_CACHE,
+	}, fuse.OK
 }
 
 func (n *gitilesNode) Read(file nodefs.File, dest []byte, off int64, context *fuse.Context) (fuse.ReadResult, fuse.Status) {
+	if off == 0 {
+		atomic.AddUint32(&n.readCount, 1)
+	}
+
 	if n.root.handleLessIO {
 		return n.handleLessRead(file, dest, off, context)
 	}

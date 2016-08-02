@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -425,6 +426,49 @@ func TestGitilesFSBasic(t *testing.T) {
 
 	if giNode.clone {
 		t.Errorf(".mk file had clone set.")
+	}
+}
+
+func TestGitilesFSCachedRead(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	treeResp, err := repoService.GetTree("ce34badf691d36e8048b63f89d1a86ee5fa4325c", "", true)
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	options := GitilesOptions{
+		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
+	}
+
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	for i := 0; i < 2; i++ {
+		if _, err := ioutil.ReadFile(filepath.Join(fix.mntDir, "AUTHORS")); err != nil {
+			t.Fatalf("ReadFile %d: %v", i, err)
+		}
+	}
+
+	ch := fs.Inode().GetChild("AUTHORS")
+	if ch == nil {
+		t.Fatalf("node for AUTHORS not found")
+	}
+
+	giNode, ok := ch.Node().(*gitilesNode)
+	if !ok {
+		t.Fatalf("got node type %T, want *gitilesNode", ch.Node())
+	}
+
+	if c := atomic.LoadUint32(&giNode.readCount); c != 1 {
+		t.Errorf("inode was read %d times, want 1.", c)
 	}
 }
 
