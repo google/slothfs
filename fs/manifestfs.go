@@ -231,6 +231,7 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 			}
 
 			tree, err := c.Tree.Get(revID)
+			cached := (err == nil && tree != nil)
 			if err != nil {
 				if repo := c.Git.OpenLocal(p.CloneURL); repo != nil {
 					defer repo.Free()
@@ -242,10 +243,11 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 				repoService := service.NewRepoService(p.Name)
 
 				tree, err = repoService.GetTree(p.Revision, "", true)
-				if err == nil {
-					if err := c.Tree.Add(revID, tree); err != nil {
-						log.Printf("treeCache.Add: %v", err)
-					}
+			}
+
+			if !cached && tree != nil && err == nil {
+				if err := c.Tree.Add(revID, tree); err != nil {
+					log.Printf("treeCache.Add: %v", err)
 				}
 			}
 

@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -30,6 +32,8 @@ import (
 	"github.com/google/slothfs/manifest"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
+
+	git "github.com/libgit2/git2go"
 )
 
 func newManifestTestFixture(mf *manifest.Manifest) (*testFixture, error) {
@@ -51,6 +55,82 @@ func newManifestTestFixture(mf *manifest.Manifest) (*testFixture, error) {
 	}
 
 	return fix, nil
+}
+
+func TestManifestFSGitRepoSeedsTreeCache(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	// Add a git repo.
+	cmd := exec.Command("/bin/sh", "-c",
+		strings.Join([]string{
+			"mkdir -p localhost/platform/build/kati.git",
+			"cd localhost/platform/build/kati.git",
+			"git init",
+			"touch file",
+			"git add file",
+			"git commit -m msg -a",
+			"git show --no-patch --pretty=format:'%H' HEAD | head",
+		}, " && "))
+	cmd.Dir = filepath.Join(fix.dir, "cache", "git")
+
+	headSHA1 := ""
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("create repo: %v, out: %s", err, string(out))
+	} else {
+		lines := strings.Split(string(out), "\n")
+		headSHA1 = lines[len(lines)-1]
+	}
+
+	p := testManifest.Project[0]
+	p.CloneURL = "file:///localhost/platform/build/kati"
+	p.Revision = headSHA1
+
+	mf := *testManifest
+	mf.Project = nil
+	mf.Project = append(mf.Project, p)
+
+	opts := ManifestOptions{
+		Manifest: &mf,
+	}
+
+	fs, err := NewManifestFS(fix.service, fix.cache, opts)
+	if err != nil {
+		t.Fatal("NewManifestFS", err)
+	}
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	headID, err := git.NewOid(headSHA1)
+	if err != nil {
+		t.Fatal("NewOid(%q): %v", headSHA1, err)
+	}
+
+	tree, err := fix.cache.Tree.Get(headID)
+	if err != nil {
+		t.Fatalf("treeCache.Get(%s): %v", headSHA1, err)
+	}
+
+	newInt := func(n int) *int { return &n }
+	tree.ID = ""
+	want := &gitiles.Tree{
+		Entries: []gitiles.TreeEntry{
+			{
+				Name: "file",
+				Mode: 0100644,
+				Type: "blob",
+				ID:   "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+				Size: newInt(0),
+			},
+		},
+	}
+	if !reflect.DeepEqual(tree, want) {
+		t.Errorf("got cached tree %v, want %v", tree, want)
+	}
 }
 
 func TestManifestFSCloneOption(t *testing.T) {

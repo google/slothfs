@@ -14,7 +14,10 @@
 
 package gitiles
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 // Project describes a repository
 type Project struct {
@@ -102,4 +105,15 @@ func (e *TreeEntry) String() string {
 type Tree struct {
 	ID      string
 	Entries []TreeEntry
+}
+
+func (t *Tree) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "tree %s {\n", t.ID)
+	for _, e := range t.Entries {
+		fmt.Fprintf(&buf, "  %s\n", e.String())
+	}
+	fmt.Fprintf(&buf, "}\n")
+	return buf.String()
+
 }
