@@ -27,6 +27,8 @@ type Cache struct {
 	Git  *gitCache
 	Tree *TreeCache
 	Blob *CAS
+
+	root string
 }
 
 // Options defines configurable options for the different caches.
@@ -65,5 +67,10 @@ func NewCache(d string, opts Options) (*Cache, error) {
 		return nil, err
 	}
 
-	return &Cache{Git: g, Tree: t, Blob: c}, nil
+	return &Cache{Git: g, Tree: t, Blob: c,
+		root: d,
+	}, nil
 }
+
+// Root returns the directory holding the cache storage.
+func (c *Cache) Root() string { return c.root }
