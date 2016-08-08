@@ -20,8 +20,20 @@ compile some flavor of Android.
 Installing
 ==========
 
-Run `all.bash` to compile, test and install all components.  The rest of this
-document assumes this has been done, and `$GOPATH/bin/` is in your `$PATH`.
+Get the source code,
+
+    go get github.com/google/slothfs/cmd/slothfs-multifs
+
+SlothFS depends git2go, which depends on libgit2.  For git2go, we recommend
+compiling libgit2 in statically, as documented
+[here](https://github.com/libgit2/git2go#from-next).
+
+To install all components, run
+
+    cd $GOPATH/src/github.com/google/slothfs/ && sh all.bash
+
+The rest of this document assumes this has been done, and `$GOPATH/bin/` is in
+your `$PATH`.
 
 In addition, install the standard Android `clone.json` to avoid unnecessary git
 clones
