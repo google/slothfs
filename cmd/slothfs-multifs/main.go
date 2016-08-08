@@ -25,6 +25,7 @@ import (
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
+	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
@@ -74,15 +75,25 @@ func main() {
 	}
 
 	root := fs.NewMultiFS(service, cache, opts)
-	server, _, err := nodefs.MountRoot(mntDir, root, &nodefs.Options{
+	nodeFSOpts := &nodefs.Options{
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,
 		AttrTimeout:     time.Hour,
 		Debug:           *debug,
-	})
-	if err != nil {
-		log.Fatalf("MountFileSystem: %v", err)
 	}
-	log.Printf("Started Git MultiFS FUSE on %s", mntDir)
+	conn := nodefs.NewFileSystemConnector(root, nodeFSOpts)
+
+	mountOpts := fuse.MountOptions{
+		Name:   "slothfs",
+		FsName: "slothfs",
+		Debug:  *debug,
+	}
+
+	server, err := fuse.NewServer(conn.RawFS(), mntDir, &mountOpts)
+	if err != nil {
+		log.Fatalf("NewServer: %v", err)
+	}
+
+	log.Printf("Started SlothFS on %s", mntDir)
 	server.Serve()
 }
