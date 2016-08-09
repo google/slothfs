@@ -51,18 +51,6 @@ The defaults of slothfs are for the public version of Android at
 which version of Android you want to run.
 
 
-Dereferencing a manifest
-========================
-
-The manifest describes which repositories go into an Android checkout. To make a
-file system out of this, we must decide at which exact revision each repository
-should be offered.
-
-This can be done with `slothfs-deref-manifest`, eg.
-
-    slothfs-deref-manifest > /tmp/m.xml
-
-
 Mounting the filesystem
 =======================
 
@@ -75,6 +63,18 @@ Then, to mount the file system, run
     slothfs-multifs /slothfs
 
 
+Dereferencing a manifest
+========================
+
+The manifest describes which repositories go into an Android checkout. To make a
+file system out of this, we must decide at which exact revision each repository
+should be offered.
+
+This can be done with `slothfs-deref-manifest`, eg.
+
+    slothfs-deref-manifest > /tmp/m.xml
+
+
 Configuring a workspace
 =======================
 
@@ -85,6 +85,9 @@ A workspace can be created by a symlinking a deferenced manifest field into the
 
 This should create a directory `/slothfs/my-workspace` holding the tree
 described in `/tmp/m.xml`.
+
+On the first time you do this, slothfs will have to fetch the tree data, which
+is slow, so this might take a while.
 
 
 Using a workspace
