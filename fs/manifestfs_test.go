@@ -107,7 +107,7 @@ func TestManifestFSGitRepoSeedsTreeCache(t *testing.T) {
 
 	headID, err := git.NewOid(headSHA1)
 	if err != nil {
-		t.Fatal("NewOid(%q): %v", headSHA1, err)
+		t.Fatalf("NewOid(%q): %v", headSHA1, err)
 	}
 
 	tree, err := fix.cache.Tree.Get(headID)
