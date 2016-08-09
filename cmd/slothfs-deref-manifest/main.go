@@ -16,14 +16,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/google/slothfs/gitiles"
-	"github.com/google/slothfs/manifest"
-
-	git "github.com/libgit2/git2go"
+	"github.com/google/slothfs/populate"
 )
 
 func main() {
@@ -37,15 +34,15 @@ func main() {
 		log.Fatalf("NewService: %v", err)
 	}
 
-	mf, err := fetchManifest(service, *repo, *branch)
+	mf, err := populate.FetchManifest(service, *repo, *branch)
 	if err != nil {
-		log.Fatalf("fetchManifest: %v", err)
+		log.Fatalf("FetchManifest: %v", err)
 	}
 
 	mf.Filter()
 
-	if err := derefManifest(service, *repo, mf); err != nil {
-		log.Fatalf("derefManifest: %v", err)
+	if err := populate.DerefManifest(service, mf); err != nil {
+		log.Fatalf("DerefManifest: %v", err)
 	}
 
 	xml, err := mf.MarshalXML()
@@ -54,64 +51,4 @@ func main() {
 	}
 
 	os.Stdout.Write(xml)
-}
-
-func fetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Manifest, error) {
-	project := service.NewRepoService(repo)
-
-	// When checking this out, it's called "manifest.xml". Go figure.
-	c, err := project.GetBlob(branch, "default.xml")
-	if err != nil {
-		return nil, err
-	}
-	mf, err := manifest.Parse(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return mf, nil
-}
-
-func derefManifest(service *gitiles.Service, manifestRepo string, mf *manifest.Manifest) error {
-	branchSet := map[string]struct{}{}
-
-	var todoProjects []int
-	for i, p := range mf.Project {
-		rev := mf.ProjectRevision(&p)
-		if _, err := git.NewOid(rev); err == nil {
-			continue
-		}
-
-		branchSet[rev] = struct{}{}
-		todoProjects = append(todoProjects, i)
-	}
-
-	var branches []string
-	for k := range branchSet {
-		branches = append(branches, k)
-	}
-
-	repos, err := service.List(branches)
-	if err != nil {
-		return err
-	}
-	for _, i := range todoProjects {
-		p := &mf.Project[i]
-
-		proj, ok := repos[p.Name]
-		if !ok {
-			return fmt.Errorf("server list doesn't mention repo %s", p.Name)
-		}
-
-		p.CloneURL = proj.CloneURL
-
-		branch := mf.ProjectRevision(p)
-		commit, ok := proj.Branches[branch]
-		if !ok {
-			return fmt.Errorf("branch %q for repo %s not returned", branch, p.Name)
-		}
-
-		p.Revision = commit
-	}
-	return nil
 }

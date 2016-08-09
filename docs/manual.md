@@ -106,6 +106,9 @@ To make `checkout` into a full-fledged checkout, run
 This populate the `checkout` directory with symlinks into `/slothfs`, yielding a
 full check out.
 
+If there were symlinks to a previous checkout in the workspace, this will also
+update timestamps to make incremental builds work.
+
 
 Syncing
 =======
@@ -113,14 +116,11 @@ Syncing
 Advancing your checkout to a different timestamp uses the same commands. To sync
 to the current state of the Android tree, do the following
 
-    SYNC=$(date -Iminutes)
-    slothfs-deref-manifest > /tmp/${SYNC}.xml
-    ln -s /tmp/${SYNC}.xml /slothfs/config/${SYNC}
-    slothfs-populate -ro /slothfs/${SYNC} .
+    slothfs-populate -sync .
 
-this will reroute symlinks in your check to your newly created
-workspace. `slothfs-populate` will also update timestamps so incremental builds
-keep working.
+This fetches the latest manifest file, finds the project revisions, sets up a
+workspace for the manifest, and updates the symlinks from your read/write
+checkout.
 
 
 Removing a workspace
