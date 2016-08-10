@@ -30,10 +30,11 @@ import (
 )
 
 func main() {
-	manifestPath := flag.String("manifest", "", "expanded manifest file path")
-	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
-	debug := flag.Bool("debug", false, "print debug info")
-	config := flag.String("config", "", "JSON file configuring what repositories should be cloned.")
+	manifestPath := flag.String("manifest", "", "Set path to the expanded manifest file.")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"),
+		"Set the directory holding the file system cache.")
+	debug := flag.Bool("debug", false, "Print FUSE debug info.")
+	config := flag.String("config", "", "Set path to clone configuration JSON file.")
 	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 

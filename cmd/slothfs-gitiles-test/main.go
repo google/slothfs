@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-	tap := flag.Bool("tap", false, "if set, tap traffic exchanged with $http_proxy")
+	tap := flag.Bool("tap", false, "Tap traffic exchanged with $http_proxy")
 	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 

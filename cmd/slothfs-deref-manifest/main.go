@@ -25,8 +25,8 @@ import (
 
 func main() {
 	gitilesOptions := gitiles.DefineFlags()
-	branch := flag.String("branch", "master", "branch to use for manifest")
-	repo := flag.String("repo", "platform/manifest", "manifest repository")
+	branch := flag.String("branch", "master", "Specify branch of the manifest repository to use.")
+	repo := flag.String("repo", "platform/manifest", "Set repository name holding manifest file.")
 	flag.Parse()
 
 	service, err := gitiles.NewService(*gitilesOptions)

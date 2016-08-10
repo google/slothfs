@@ -28,10 +28,11 @@ import (
 )
 
 func main() {
-	branch := flag.String("branch", "master", "branch name")
-	repo := flag.String("repo", "", "repository name")
-	debug := flag.Bool("debug", false, "print debug info")
-	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
+	branch := flag.String("branch", "master", "Set the branch name.")
+	repo := flag.String("repo", "", "Set the repository name.")
+	debug := flag.Bool("debug", false, "Print FUSE debug info.")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"),
+		"Set directory for file system cache.")
 	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 

@@ -66,10 +66,10 @@ var defaultOptions Options
 // DefineFlags sets up standard command line flags, and returns the
 // options struct in which the values are put.
 func DefineFlags() *Options {
-	flag.StringVar(&defaultOptions.Address, "gitiles_url", "https://android.googlesource.com", "URL of the gitiles service.")
-	flag.StringVar(&defaultOptions.CookieJar, "gitiles_cookies", "", "path to cURL-style cookie jar file.")
-	flag.StringVar(&defaultOptions.UserAgent, "gitiles_agent", "slothfs", "gitiles User-Agent string to use.")
-	flag.Float64Var(&defaultOptions.SustainedQPS, "gitiles_qps", 4, "maximum Gitiles QPS")
+	flag.StringVar(&defaultOptions.Address, "gitiles_url", "https://android.googlesource.com", "Set the URL of the Gitiles service.")
+	flag.StringVar(&defaultOptions.CookieJar, "gitiles_cookies", "", "Set path to cURL-style cookie jar file.")
+	flag.StringVar(&defaultOptions.UserAgent, "gitiles_agent", "slothfs", "Set the User-Agent string to report to Gitiles.")
+	flag.Float64Var(&defaultOptions.SustainedQPS, "gitiles_qps", 4, "Set the maximum QPS to send to Gitiles.")
 	return &defaultOptions
 }
 

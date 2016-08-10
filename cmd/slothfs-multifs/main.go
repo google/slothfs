@@ -30,9 +30,11 @@ import (
 )
 
 func main() {
-	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"), "cache dir")
-	debug := flag.Bool("debug", false, "print debug info")
-	config := flag.String("config", filepath.Join(os.Getenv("HOME"), ".config", "slothfs"), "directory with configuration files.")
+	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"),
+		"Set the directory holding the filesystem cache.")
+	debug := flag.Bool("debug", false, "Print FUSE debug info")
+	config := flag.String("config", filepath.Join(os.Getenv("HOME"), ".config", "slothfs"),
+		"Set the directory with configuration files.")
 	gitilesOptions := gitiles.DefineFlags()
 	flag.Parse()
 
