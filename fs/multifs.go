@@ -42,16 +42,9 @@ func (r *multiManifestFSRoot) StatFs() *fuse.StatfsOut {
 	var s syscall.Statfs_t
 	err := syscall.Statfs(r.cache.Root(), &s)
 	if err == nil {
-		return &fuse.StatfsOut{
-			Blocks:  s.Blocks,
-			Bsize:   uint32(s.Bsize),
-			Bfree:   s.Bfree,
-			Bavail:  s.Bavail,
-			Files:   s.Files,
-			Ffree:   s.Ffree,
-			Frsize:  uint32(s.Frsize),
-			NameLen: uint32(s.Namelen),
-		}
+		out := &fuse.StatfsOut{}
+		out.FromStatfsT(&s)
+		return out
 	}
 	return nil
 }
