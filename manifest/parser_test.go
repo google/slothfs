@@ -19,6 +19,10 @@ import (
 	"testing"
 )
 
+func newString(s string) *string {
+	return &s
+}
+
 var aospManifest = `<?xml version="1.0" encoding="UTF-8"?>
 <manifest>
   <remote  name="aosp"
@@ -55,7 +59,7 @@ func TestBasic(t *testing.T) {
 		},
 		Project: []Project{
 			{
-				Path:         "build",
+				Path:         newString("build"),
 				Name:         "platform/build",
 				GroupsString: "pdk,tradefed",
 				Groups: map[string]bool{
@@ -70,7 +74,7 @@ func TestBasic(t *testing.T) {
 				},
 			},
 			{
-				Path:         "build/soong",
+				Path:         newString("build/soong"),
 				Name:         "platform/build/soong",
 				GroupsString: "pdk,tradefed",
 				Groups: map[string]bool{

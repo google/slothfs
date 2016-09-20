@@ -31,7 +31,7 @@ type Linkfile struct {
 // Project represents a single git repository that should be stitched
 // into the checkout.
 type Project struct {
-	Path         string          `xml:"path,attr"`
+	Path         *string         `xml:"path,attr"`
 	Name         string          `xml:"name,attr"`
 	Remote       string          `xml:"remote,attr,omitempty"`
 	Copyfile     []Copyfile      `xml:"copyfile,omitempty"`
@@ -51,6 +51,14 @@ type Project struct {
 
 	// This is not part of the Manifest spec.
 	CloneURL string `xml:"clone-url,attr,omitempty"`
+}
+
+// GetPath provides the path where to place the repository.
+func (p *Project) GetPath() string {
+	if p.Path != nil {
+		return *p.Path
+	}
+	return p.Name
 }
 
 // Remote describes a host where a set of projects is hosted.

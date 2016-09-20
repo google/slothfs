@@ -163,7 +163,7 @@ func TestCopyEntries(t *testing.T) {
 	if err := fixture.addWorkspace("m", &manifest.Manifest{
 		Project: []manifest.Project{{
 			Name:     "platform/project",
-			Path:     "p",
+			Path:     newString("p"),
 			Revision: ids[0],
 			Copyfile: []manifest.Copyfile{
 				{Src: "a", Dest: "bla"},
@@ -214,7 +214,7 @@ func TestBrokenWorkspaceLink(t *testing.T) {
 		if err := fixture.addWorkspace(fmt.Sprintf("m%d", i), &manifest.Manifest{
 			Project: []manifest.Project{{
 				Name:     "platform/project",
-				Path:     "p",
+				Path:     newString("p"),
 				Revision: ids[0],
 			}}}); err != nil {
 			t.Fatalf("addWorkspace(%d): %v", i, err)
@@ -300,7 +300,7 @@ func TestFUSESymlink(t *testing.T) {
 		if err := fixture.addWorkspace(fmt.Sprintf("m%d", i), &manifest.Manifest{
 			Project: []manifest.Project{{
 				Name:     "platform/project",
-				Path:     "p",
+				Path:     newString("p"),
 				Revision: ids[i],
 			}}}); err != nil {
 			t.Fatalf("addWorkspace(%d): %v", i, err)
@@ -408,7 +408,7 @@ func TestBasic(t *testing.T) {
 	if err := fixture.addWorkspace("m1", &manifest.Manifest{
 		Project: []manifest.Project{{
 			Name:     "platform/project",
-			Path:     "project",
+			Path:     newString("project"),
 			Revision: ids[0],
 		}}}); err != nil {
 		t.Fatalf("addWorkspace(m1): %v", err)
@@ -418,11 +418,11 @@ func TestBasic(t *testing.T) {
 		Project: []manifest.Project{
 			{
 				Name:     "platform/project",
-				Path:     "project",
+				Path:     newString("project"),
 				Revision: ids[1],
 			}, {
 				Name:     "platform/sub",
-				Path:     "sub",
+				Path:     newString("sub"),
 				Revision: ids[2],
 			}},
 	}); err != nil {

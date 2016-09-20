@@ -78,7 +78,7 @@ func repoTreeFromManifest(xmlFile string) (*repoTree, error) {
 
 	var byDepth [][]*manifest.Project
 	for i, p := range mf.Project {
-		l := len(strings.Split(p.Path, "/"))
+		l := len(strings.Split(p.GetPath(), "/"))
 		for len(byDepth) <= l {
 			byDepth = append(byDepth, nil)
 		}
@@ -94,9 +94,9 @@ func repoTreeFromManifest(xmlFile string) (*repoTree, error) {
 	for _, projs := range byDepth {
 		for _, p := range projs {
 			childTree := makeRepoTree()
-			treesByPath[p.Path] = childTree
+			treesByPath[p.GetPath()] = childTree
 
-			parent, key := root.findParentRepo(p.Path)
+			parent, key := root.findParentRepo(p.GetPath())
 			parent.children[key] = childTree
 		}
 	}

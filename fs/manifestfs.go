@@ -108,10 +108,10 @@ func (r *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	clonablePaths := map[string]bool{}
 	revmap := map[string]*manifest.Project{}
 	for i, p := range r.options.Manifest.Project {
-		revmap[p.Path] = &r.options.Manifest.Project[i]
+		revmap[p.GetPath()] = &r.options.Manifest.Project[i]
 
 		if p.CloneDepth == "" {
-			clonablePaths[p.Path] = true
+			clonablePaths[p.GetPath()] = true
 		}
 	}
 
@@ -162,7 +162,7 @@ func (r *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 	// have directories to attach the copy/link nodes to.
 	for _, p := range r.options.Manifest.Project {
 		for _, cp := range p.Copyfile {
-			srcNode, left := fsConn.Node(r.Inode(), filepath.Join(p.Path, cp.Src))
+			srcNode, left := fsConn.Node(r.Inode(), filepath.Join(p.GetPath(), cp.Src))
 			if len(left) > 0 {
 				return fmt.Errorf("Copyfile(%s): source %s does not exist", p.Name, cp.Src)
 			}
@@ -189,7 +189,7 @@ func (r *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 				return fmt.Errorf("Linkfile(%s): directory for dest %s does not exist.", p.Name, lf.Dest)
 			}
 
-			src := filepath.Join(p.Path, lf.Src)
+			src := filepath.Join(p.GetPath(), lf.Src)
 			rel, err := filepath.Rel(filepath.Dir(lf.Dest), src)
 			if err != nil {
 				return err
@@ -226,7 +226,7 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 		go func(p manifest.Project) {
 			revID, err := git.NewOid(p.Revision)
 			if err != nil {
-				out <- resultT{p.Path, nil, err}
+				out <- resultT{p.GetPath(), nil, err}
 				return
 			}
 
@@ -251,7 +251,7 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 				}
 			}
 
-			out <- resultT{p.Path, tree, err}
+			out <- resultT{p.GetPath(), tree, err}
 		}(p)
 	}
 

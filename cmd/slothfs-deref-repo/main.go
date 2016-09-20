@@ -41,7 +41,7 @@ func main() {
 
 	mf.Filter()
 	for i, p := range mf.Project {
-		repoPath := filepath.Join(top, p.Path, ".git")
+		repoPath := filepath.Join(top, p.GetPath(), ".git")
 		repo, err := git.OpenRepository(repoPath)
 		if err != nil {
 			continue
