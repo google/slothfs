@@ -26,6 +26,7 @@ func TestParseCookieJar(t *testing.T) {
 	in := `# Netscape HTTP Cookie File
 # http://www.netscape.com/newsref/std/cookie_spec.html
 # This is a generated file!  Do not edit.
+#HttpOnly_login.netscape.com	FALSE	/	FALSE	1467968199	XYZ     
 #HttpOnly_login.netscape.com	FALSE	/	FALSE	1467968199	XYZ	abc|pqr`
 
 	buf := bytes.NewBufferString(in)
@@ -35,6 +36,14 @@ func TestParseCookieJar(t *testing.T) {
 	}
 
 	want := []*http.Cookie{
+		{
+			Domain:   "login.netscape.com",
+			Path:     "/",
+			Secure:   false,
+			Expires:  time.Unix(1467968199, 0),
+			Name:     "XYZ",
+			HttpOnly: true,
+		},
 		{
 			Domain:   "login.netscape.com",
 			Path:     "/",

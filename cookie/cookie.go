@@ -53,8 +53,8 @@ func ParseCookieJar(r io.Reader) ([]*http.Cookie, error) {
 			continue
 		}
 		fields := strings.Split(line, "\t")
-		if len(fields) != 7 {
-			return nil, fmt.Errorf("got %d fields in line %q, want 8", len(fields), line)
+		if len(fields) != 6 && len(fields) != 7 {
+			return nil, fmt.Errorf("got %d fields in line %q, want 6 or 7", len(fields), line)
 		}
 
 		exp, err := strconv.ParseInt(fields[4], 10, 64)
@@ -65,11 +65,13 @@ func ParseCookieJar(r io.Reader) ([]*http.Cookie, error) {
 		c := http.Cookie{
 			Domain:   fields[0],
 			Name:     fields[5],
-			Value:    fields[6],
 			Path:     fields[2],
 			Expires:  time.Unix(exp, 0),
 			Secure:   fields[3] == "TRUE",
 			HttpOnly: httpOnly,
+		}
+		if len(fields) == 7 {
+			c.Value = fields[6]
 		}
 
 		result = append(result, &c)
