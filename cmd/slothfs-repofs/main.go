@@ -58,7 +58,7 @@ func main() {
 		log.Printf("NewService: %v", err)
 	}
 
-	opts := fs.MultiFSOptions{}
+	opts := fs.MultiManifestFSOptions{}
 	if *config != "" {
 		cloneJS := filepath.Join(*config, "clone.json")
 		configContents, err := ioutil.ReadFile(cloneJS)
@@ -76,7 +76,7 @@ func main() {
 		}
 	}
 
-	root := fs.NewMultiFS(service, cache, opts)
+	root := fs.NewMultiManifestFS(service, cache, opts)
 	nodeFSOpts := &nodefs.Options{
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,

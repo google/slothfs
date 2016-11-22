@@ -92,7 +92,7 @@ func syncManifest(opts *gitiles.Options, mountPoint, repo, branch string) (strin
 
 func main() {
 	gitilesOptions := gitiles.DefineFlags()
-	newROWorkspace := flag.String("ro", "", "Set path to slothfs-multifs mount.")
+	newROWorkspace := flag.String("ro", "", "Set path to slothfs-repofs mount.")
 	mount := flag.String("mount", "", "Set slothfs mountpoint for -sync option. Autodetected if empty.")
 	sync := flag.Bool("sync", false, "Sync checkout to latest manifest version.")
 	syncBranch := flag.String("sync_branch", "master", "Use this branch for -sync.")

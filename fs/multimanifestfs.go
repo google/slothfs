@@ -34,7 +34,7 @@ type multiManifestFSRoot struct {
 	nodeCache *nodeCache
 	cache     *cache.Cache
 	fsConn    *nodefs.FileSystemConnector
-	options   MultiFSOptions
+	options   MultiManifestFSOptions
 	gitiles   *gitiles.Service
 }
 
@@ -89,7 +89,7 @@ func (r *multiManifestFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 
 func (c *configNode) Deletable() bool { return false }
 
-func NewMultiFS(service *gitiles.Service, c *cache.Cache, options MultiFSOptions) *multiManifestFSRoot {
+func NewMultiManifestFS(service *gitiles.Service, c *cache.Cache, options MultiManifestFSOptions) *multiManifestFSRoot {
 	r := &multiManifestFSRoot{
 		Node:      nodefs.NewDefaultNode(),
 		nodeCache: newNodeCache(),

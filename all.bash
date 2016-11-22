@@ -21,7 +21,7 @@ for sub in manifest \
   fs \
   populate \
 cmd/slothfs-deref-manifest \
-cmd/slothfs-multifs \
+cmd/slothfs-repofs \
 cmd/slothfs-manifestfs \
 cmd/slothfs-populate \
 cmd/slothfs-gitilesfs \

@@ -9,9 +9,9 @@ How to use
 
 To start the file system:
 
-    go install github.com/google/slothfs/cmd/slothfs-multifs
+    go install github.com/google/slothfs/cmd/slothfs-repofs
     mkdir /tmp/mnt
-    slothfs-multifs /tmp/mnt &
+    slothfs-repofs /tmp/mnt &
 
 To create a workspace "ws" corresponding to the latest manifest version
 

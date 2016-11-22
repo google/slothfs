@@ -22,7 +22,7 @@ Installing
 
 Get the source code,
 
-    go get github.com/google/slothfs/cmd/slothfs-multifs
+    go get github.com/google/slothfs/cmd/slothfs-repofs
 
 SlothFS depends git2go, which depends on libgit2.  For git2go, we recommend
 compiling libgit2 in statically, as documented
@@ -60,7 +60,7 @@ First, create a mountpoint:
 
 Then, to mount the file system, run
 
-    slothfs-multifs /slothfs
+    slothfs-repofs /slothfs
 
 
 Dereferencing a manifest

@@ -273,7 +273,7 @@ func (f *testFixture) cleanup() {
 }
 
 func newTestFixture() (*testFixture, error) {
-	d, err := ioutil.TempDir("", "multifstest")
+	d, err := ioutil.TempDir("", "slothfs")
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func (f *testFixture) mount(root nodefs.Node) error {
 	return nil
 }
 
-func TestMultiFSBrokenXML(t *testing.T) {
+func TestMultiManifestFSBrokenXML(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
 		t.Fatalf("newTestFixture: %v", err)
@@ -339,8 +339,8 @@ func TestMultiFSBrokenXML(t *testing.T) {
 		t.Errorf("WriteFile(%s): %v", brokenXMLFile, err)
 	}
 
-	opts := MultiFSOptions{}
-	fs := NewMultiFS(fix.service, fix.cache, opts)
+	opts := MultiManifestFSOptions{}
+	fs := NewMultiManifestFS(fix.service, fix.cache, opts)
 
 	if err := fix.mount(fs); err != nil {
 		t.Fatalf("mount: %v", err)
@@ -351,7 +351,7 @@ func TestMultiFSBrokenXML(t *testing.T) {
 	}
 }
 
-func TestMultiFSBasic(t *testing.T) {
+func TestMultiManifestFSBasic(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
 		t.Fatalf("newTestFixture: %v", err)
@@ -363,8 +363,8 @@ func TestMultiFSBasic(t *testing.T) {
 		t.Errorf("WriteFile(%s): %v", xmlFile, err)
 	}
 
-	opts := MultiFSOptions{}
-	fs := NewMultiFS(fix.service, fix.cache, opts)
+	opts := MultiManifestFSOptions{}
+	fs := NewMultiManifestFS(fix.service, fix.cache, opts)
 
 	if err := fix.mount(fs); err != nil {
 		t.Fatalf("mount: %v", err)
@@ -410,7 +410,7 @@ func TestMultiFSBasic(t *testing.T) {
 	}
 }
 
-func TestMultiFSManifestDir(t *testing.T) {
+func TestMultiManifestFSManifestDir(t *testing.T) {
 	fix, err := newTestFixture()
 	if err != nil {
 		t.Fatalf("newTestFixture: %v", err)
@@ -427,10 +427,10 @@ func TestMultiFSManifestDir(t *testing.T) {
 		t.Errorf("WriteFile(%s): %v", xmlFile, err)
 	}
 
-	opts := MultiFSOptions{
+	opts := MultiManifestFSOptions{
 		ManifestDir: mfDir,
 	}
-	fs := NewMultiFS(fix.service, fix.cache, opts)
+	fs := NewMultiManifestFS(fix.service, fix.cache, opts)
 
 	if err := fix.mount(fs); err != nil {
 		t.Fatalf("mount: %v", err)
