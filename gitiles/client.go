@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/google/slothfs/cookie"
 	"golang.org/x/net/context"
@@ -39,6 +40,7 @@ type Service struct {
 	client  http.Client
 	agent   string
 	jar     http.CookieJar
+	debug   bool
 }
 
 // Addr returns the address of the gitiles service.
@@ -59,6 +61,8 @@ type Options struct {
 
 	// UserAgent defines how we present ourself to the server.
 	UserAgent string
+
+	Debug bool
 }
 
 var defaultOptions Options
@@ -70,6 +74,7 @@ func DefineFlags() *Options {
 	flag.StringVar(&defaultOptions.CookieJar, "gitiles_cookies", "", "Set path to cURL-style cookie jar file.")
 	flag.StringVar(&defaultOptions.UserAgent, "gitiles_agent", "slothfs", "Set the User-Agent string to report to Gitiles.")
 	flag.Float64Var(&defaultOptions.SustainedQPS, "gitiles_qps", 4, "Set the maximum QPS to send to Gitiles.")
+	flag.BoolVar(&defaultOptions.Debug, "gitiles_debug", false, "Print URLs as they are fetched.")
 	return &defaultOptions
 }
 
@@ -111,6 +116,7 @@ func NewService(opts Options) (*Service, error) {
 		req.Header.Set("User-Agent", s.agent)
 		return nil
 	}
+	s.debug = opts.Debug
 	return s, nil
 }
 
@@ -133,6 +139,10 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("%s: %s", u.String(), resp.Status)
+	}
+
+	if s.debug {
+		log.Printf("%s %s: %d", req.Method, req.URL, resp.StatusCode)
 	}
 	if got := resp.Request.URL.String(); got != u.String() {
 		// We accept redirects, but only for authentication.
@@ -231,7 +241,7 @@ func (s *RepoService) GetBlob(branch, filename string) ([]byte, error) {
 func (s *RepoService) GetTree(branch, dir string, recursive bool) (*Tree, error) {
 	jsonURL := s.service.addr
 	jsonURL.Path = path.Join(jsonURL.Path, s.Name, "+", branch, dir)
-	if dir == "" {
+	if !strings.HasSuffix(jsonURL.Path, "/") {
 		jsonURL.Path += "/"
 	}
 	jsonURL.RawQuery = "format=JSON&long=1"
