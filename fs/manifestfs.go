@@ -143,10 +143,12 @@ func (r *manifestFSRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 
 			repoService := r.service.NewRepoService(revmap[p].Name)
 
-			opts := GitilesOptions{
-				Revision:    revmap[p].Revision,
-				CloneURL:    cloneURL,
-				CloneOption: r.options.FileCloneOption,
+			opts := GitilesRevisionOptions{
+				Revision: revmap[p].Revision,
+				GitilesOptions: GitilesOptions{
+					CloneURL:    cloneURL,
+					CloneOption: r.options.FileCloneOption,
+				},
 			}
 
 			subRoot := NewGitilesRoot(r.cache, r.trees[p], repoService, opts)

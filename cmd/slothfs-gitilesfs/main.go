@@ -28,7 +28,6 @@ import (
 )
 
 func main() {
-	branch := flag.String("branch", "master", "Set the branch name.")
 	repo := flag.String("repo", "", "Set the repository name.")
 	debug := flag.Bool("debug", false, "Print FUSE debug info.")
 	cacheDir := flag.String("cache", filepath.Join(os.Getenv("HOME"), ".cache", "slothfs"),
@@ -40,7 +39,7 @@ func main() {
 		log.Fatal("must set --cache")
 	}
 	if len(flag.Args()) < 1 {
-		log.Fatal("usage: main -gitiles URL -repo REPO [-branch BRANCH] MOUNT-POINT")
+		log.Fatal("usage: main -repo REPO MOUNT-POINT")
 	}
 
 	mntDir := flag.Arg(0)
@@ -60,17 +59,11 @@ func main() {
 		log.Fatalf("GetProject(%s): %v", *repo, err)
 	}
 
-	tree, err := repoService.GetTree(*branch, "", true)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	opts := fs.GitilesOptions{
-		Revision: *branch,
 		CloneURL: project.CloneURL,
 	}
 
-	root := fs.NewGitilesRoot(cache, tree, repoService, opts)
+	root := fs.NewGitilesConfigFSRoot(cache, repoService, &opts)
 	server, _, err := nodefs.MountRoot(mntDir, root, &nodefs.Options{
 		EntryTimeout:    time.Hour,
 		NegativeTimeout: time.Hour,

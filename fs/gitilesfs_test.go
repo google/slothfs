@@ -15,6 +15,7 @@
 package fs
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -38,11 +39,15 @@ import (
 
 const fuseDebug = false
 
+const testEncodedBlob = `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`
+
+var testBlob []byte
+
 func init() {
 	enc := map[string]string{
-		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT":  `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
-		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORSx?format=TEXT": `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
-		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS2?format=TEXT": `IyBUaGlzIGlzIHRoZSBvZmZpY2lhbCBsaXN0IG9mIGdsb2cgYXV0aG9ycyBmb3IgY29weXJpZ2h0IHB1cnBvc2VzLgojIFRoaXMgZmlsZSBpcyBkaXN0aW5jdCBmcm9tIHRoZSBDT05UUklCVVRPUlMgZmlsZXMuCiMgU2VlIHRoZSBsYXR0ZXIgZm9yIGFuIGV4cGxhbmF0aW9uLgojCiMgTmFtZXMgc2hvdWxkIGJlIGFkZGVkIHRvIHRoaXMgZmlsZSBhczoKIwlOYW1lIG9yIE9yZ2FuaXphdGlvbiA8ZW1haWwgYWRkcmVzcz4KIyBUaGUgZW1haWwgYWRkcmVzcyBpcyBub3QgcmVxdWlyZWQgZm9yIG9yZ2FuaXphdGlvbnMuCiMKIyBQbGVhc2Uga2VlcCB0aGUgbGlzdCBzb3J0ZWQuCgpLb3VoZWkgU3V0b3UgPGtvdUBjb3ptaXhuZy5vcmc+Ckdvb2dsZSBJbmMuCg==`,
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS?format=TEXT":  testEncodedBlob,
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORSx?format=TEXT": testEncodedBlob,
+		"/platform/build/kati/+show/ce34badf691d36e8048b63f89d1a86ee5fa4325c/AUTHORS2?format=TEXT": testEncodedBlob,
 		"/platform/build/kati/+/ce34badf691d36e8048b63f89d1a86ee5fa4325c/testcase/addprefix.mk":    "dGVzdDoKCWVjaG8gJChhZGRwcmVmaXggc3JjLyxmb28gYmFyKQo=",
 	}
 	for k, v := range enc {
@@ -53,6 +58,10 @@ func init() {
 		}
 
 		c = c[:n]
+		if v == testEncodedBlob {
+			testBlob = c
+		}
+
 		testGitiles[k] = string(c)
 	}
 }
@@ -241,9 +250,11 @@ func TestGitilesFSNotInGit(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{
+	options := GitilesRevisionOptions{
 		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
-		CloneURL: fmt.Sprintf("http://%s/platform/build/kati", fix.testServer.addr),
+		GitilesOptions: GitilesOptions{
+			CloneURL: fmt.Sprintf("http://%s/platform/build/kati", fix.testServer.addr),
+		},
 	}
 
 	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
@@ -269,7 +280,7 @@ func TestGitilesFSSharedNodes(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{}
+	options := GitilesRevisionOptions{}
 
 	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
 	if err := fix.mount(fs); err != nil {
@@ -308,7 +319,7 @@ func TestGitilesFSTreeID(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{}
+	options := GitilesRevisionOptions{}
 
 	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
 	if err := fix.mount(fs); err != nil {
@@ -358,7 +369,7 @@ func TestGitilesFSSubmodule(t *testing.T) {
 			ID:   "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
 		}},
 	}
-	fs := NewGitilesRoot(fix.cache, tree, repoService, GitilesOptions{})
+	fs := NewGitilesRoot(fix.cache, tree, repoService, GitilesRevisionOptions{})
 	if err := fix.mount(fs); err != nil {
 		t.Fatal("mount", err)
 	}
@@ -392,9 +403,8 @@ func TestGitilesFSBasic(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{
-		CloneOption: fileOpts,
-	}
+	options := GitilesRevisionOptions{}
+	options.CloneOption = fileOpts
 
 	fs := NewGitilesRoot(fix.cache, treeResp, repoService, options)
 	if err := fix.mount(fs); err != nil {
@@ -443,7 +453,7 @@ func TestGitilesFSCachedRead(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{
+	options := GitilesRevisionOptions{
 		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
 	}
 
@@ -486,7 +496,7 @@ func TestGitilesFSTimeStamps(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	fs := NewGitilesRoot(fix.cache, treeResp, repoService, GitilesOptions{})
+	fs := NewGitilesRoot(fix.cache, treeResp, repoService, GitilesRevisionOptions{})
 	if err := fix.mount(fs); err != nil {
 		t.Fatal("mount", err)
 	}
@@ -521,7 +531,7 @@ func TestGitilesFSMultiFetch(t *testing.T) {
 		t.Fatal("Tree:", err)
 	}
 
-	options := GitilesOptions{
+	options := GitilesRevisionOptions{
 		Revision: "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
 	}
 
@@ -546,5 +556,32 @@ func TestGitilesFSMultiFetch(t *testing.T) {
 		if got != 1 {
 			t.Errorf("got request count %d for %s, want 1", got, key)
 		}
+	}
+}
+
+func TestGitilesConfigFSTest(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	repoService := fix.service.NewRepoService("platform/build/kati")
+	if err != nil {
+		t.Fatal("Tree:", err)
+	}
+
+	fs := NewGitilesConfigFSRoot(fix.cache, repoService, &GitilesOptions{})
+	if err := fix.mount(fs); err != nil {
+		t.Fatal("mount", err)
+	}
+
+	fn := filepath.Join(fix.mntDir, "ce34badf691d36e8048b63f89d1a86ee5fa4325c", "AUTHORS")
+	content, err := ioutil.ReadFile(fn)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if bytes.Compare(content, testBlob) != 0 {
+		t.Errorf("blob for %s differs", fn)
 	}
 }

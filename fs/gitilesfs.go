@@ -43,7 +43,7 @@ type gitilesRoot struct {
 	cache   *cache.Cache
 	service *gitiles.RepoService
 	tree    *gitiles.Tree
-	opts    GitilesOptions
+	opts    GitilesRevisionOptions
 
 	handleLessIO bool
 
@@ -303,7 +303,7 @@ func newDataNode(c []byte) nodefs.Node {
 }
 
 // NewGitilesRoot returns the root node for a file system.
-func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesOptions) nodefs.Node {
+func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesRevisionOptions) nodefs.Node {
 	r := &gitilesRoot{
 		Node:         newDirNode(),
 		service:      service,
