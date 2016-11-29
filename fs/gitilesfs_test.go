@@ -220,7 +220,8 @@ func TestGitilesFSNotInGit(t *testing.T) {
 	}
 	defer fix.cleanup()
 
-	// Add a git repo; this doesn't have the requested blob.
+	// Add a git repo; this doesn't have the requested blob, but
+	// we can still get it from our (fake) HTTP gitiles server.
 	cmd := exec.Command("/bin/sh", "-c",
 		strings.Join([]string{
 			"mkdir -p localhost/platform/build/kati.git",
