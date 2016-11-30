@@ -93,6 +93,15 @@ func init() {
 
 var testGitiles = map[string]string{
 	"/platform/manifest/+show/master/default.xml?format=TEXT": testManifestXML,
+	"/?format=JSON": `)]}'
+{
+  "platform/build/kati": {
+    "name": "platform/build/kati",
+    "clone_url": "https://android.googlesource.com/platform/build/kati",
+    "description": "Description."
+  }
+}
+`,
 	"/platform/build/kati/+/master?format=JSON": `)]}'
 {
   "commit": "ce34badf691d36e8048b63f89d1a86ee5fa4325c",
@@ -577,6 +586,29 @@ func TestGitilesConfigFSTest(t *testing.T) {
 	}
 
 	fn := filepath.Join(fix.mntDir, "ce34badf691d36e8048b63f89d1a86ee5fa4325c", "AUTHORS")
+	content, err := ioutil.ReadFile(fn)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if bytes.Compare(content, testBlob) != 0 {
+		t.Errorf("blob for %s differs", fn)
+	}
+}
+
+func TestGitilesHostFS(t *testing.T) {
+	fix, err := newTestFixture()
+	if err != nil {
+		t.Fatal("newTestFixture", err)
+	}
+	defer fix.cleanup()
+
+	if fs, err := NewHostFS(fix.cache, fix.service, nil); err != nil {
+		t.Fatalf("NewHostFS: %v", err)
+	} else if err := fix.mount(fs); err != nil {
+		t.Fatalf("mount: %v", err)
+	}
+
+	fn := filepath.Join(fix.mntDir, "platform/build/kati", "ce34badf691d36e8048b63f89d1a86ee5fa4325c", "AUTHORS")
 	content, err := ioutil.ReadFile(fn)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)

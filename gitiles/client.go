@@ -194,6 +194,12 @@ func (s *Service) List(branches []string) (map[string]*Project, error) {
 
 	projects := map[string]*Project{}
 	err := s.getJSON(&listURL, &projects)
+	for k, v := range projects {
+		if k != v.Name {
+			return nil, fmt.Errorf("gitiles: key %q had project name %q", k, v.Name)
+		}
+	}
+
 	return projects, err
 }
 

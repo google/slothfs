@@ -43,16 +43,20 @@ func (r *gitilesConfigFSRoot) Lookup(out *fuse.Attr, name string, context *fuse.
 		return nil, fuse.ENOENT
 	}
 
+	if ch := r.Inode().GetChild(name); ch != nil {
+		return ch, fuse.OK
+	}
+
 	tree, err := r.cache.Tree.Get(id)
 	if err != nil {
 		tree, err = r.service.GetTree(id.String(), "/", true)
 		if err != nil {
-			log.Println("GetTree(%s): %v", id, err)
+			log.Printf("GetTree(%s): %v", id, err)
 			return nil, fuse.EIO
 		}
 
 		if err := r.cache.Tree.Add(id, tree); err != nil {
-			log.Println("TreeCache.Add(%s): %v", id, err)
+			log.Printf("TreeCache.Add(%s): %v", id, err)
 		}
 	}
 
