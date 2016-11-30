@@ -45,12 +45,12 @@ func main() {
 	mntDir := flag.Arg(0)
 	cache, err := cache.NewCache(*cacheDir, cache.Options{})
 	if err != nil {
-		log.Printf("NewCache: %v", err)
+		log.Fatalf("NewCache: %v", err)
 	}
 
 	service, err := gitiles.NewService(*gitilesOptions)
 	if err != nil {
-		log.Printf("NewService: %v", err)
+		log.Fatalf("NewService: %v", err)
 	}
 
 	repoService := service.NewRepoService(*repo)
