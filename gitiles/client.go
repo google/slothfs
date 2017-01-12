@@ -62,6 +62,9 @@ type Options struct {
 	// UserAgent defines how we present ourself to the server.
 	UserAgent string
 
+	// HTTPClient allows callers to present their own http.Client instead of the default.
+	HTTPClient http.Client
+
 	Debug bool
 }
 
@@ -109,6 +112,7 @@ func NewService(opts Options) (*Service, error) {
 		limiter: rate.NewLimiter(rate.Limit(opts.SustainedQPS), opts.BurstQPS),
 		addr:    *url,
 		agent:   opts.UserAgent,
+		client:  opts.HTTPClient,
 	}
 
 	s.client.Jar = jar
