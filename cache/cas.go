@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	git "github.com/libgit2/git2go"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 // CAS is a content addressable storage. It is intended to be used
@@ -41,19 +41,19 @@ func NewCAS(dir string) (*CAS, error) {
 	}, nil
 }
 
-func (c *CAS) path(id git.Oid) string {
+func (c *CAS) path(id plumbing.Hash) string {
 	str := id.String()
 	return fmt.Sprintf("%s/%s/%s", c.dir, str[:3], str[3:])
 }
 
 // Open returns a file corresponding to the blob, opened for reading.
-func (c *CAS) Open(id git.Oid) (*os.File, bool) {
+func (c *CAS) Open(id plumbing.Hash) (*os.File, bool) {
 	f, err := os.Open(c.path(id))
 	return f, err == nil
 }
 
 // Write writes the given data under the given ID atomically.
-func (c *CAS) Write(id git.Oid, data []byte) error {
+func (c *CAS) Write(id plumbing.Hash, data []byte) error {
 	// TODO(hanwen): we should run data through the git hash to
 	// verify that it is what it says it is.
 	f, err := ioutil.TempFile(c.dir, "tmp")

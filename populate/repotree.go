@@ -25,7 +25,7 @@ import (
 	"sort"
 	"strings"
 
-	git "github.com/libgit2/git2go"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
@@ -35,7 +35,7 @@ import (
 // repoTree node.
 type fileInfo struct {
 	// the SHA1 of the file. This can be nil if getting it was too expensive.
-	sha1 *git.Oid
+	sha1 *plumbing.Hash
 }
 
 // repoTree is a nested set of Git repositories.
@@ -128,7 +128,7 @@ func (t *repoTree) fillFromSlothFS(dir string) error {
 
 	for _, e := range tree.Entries {
 		fi := &fileInfo{}
-		fi.sha1, err = git.NewOid(e.ID)
+		fi.sha1, err = parseID(e.ID)
 		if err != nil {
 			return err
 		}

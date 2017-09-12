@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	git "github.com/libgit2/git2go"
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 // gitCache manages a set of bare git repositories.  Repositories are
@@ -170,7 +170,7 @@ func (c *gitCache) OpenLocal(url string) *git.Repository {
 	if err != nil {
 		return nil
 	}
-	repo, err := git.OpenRepository(p)
+	repo, err := git.PlainOpen(p)
 	if err != nil {
 		return nil
 	}
@@ -197,6 +197,6 @@ func (c *gitCache) Open(url string) (*git.Repository, error) {
 			return nil, err
 		}
 	}
-	repo, err := git.OpenRepository(p)
+	repo, err := git.PlainOpen(p)
 	return repo, err
 }

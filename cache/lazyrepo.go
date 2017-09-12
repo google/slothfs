@@ -18,7 +18,7 @@ import (
 	"log"
 	"sync"
 
-	git "github.com/libgit2/git2go"
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 // LazyRepo represents a git repository that might be fetched on

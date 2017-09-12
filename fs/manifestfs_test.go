@@ -32,8 +32,6 @@ import (
 	"github.com/google/slothfs/manifest"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
-
-	git "github.com/libgit2/git2go"
 )
 
 func newManifestTestFixture(mf *manifest.Manifest) (*testFixture, error) {
@@ -105,9 +103,9 @@ func TestManifestFSGitRepoSeedsTreeCache(t *testing.T) {
 		t.Fatal("mount", err)
 	}
 
-	headID, err := git.NewOid(headSHA1)
+	headID, err := parseID(headSHA1)
 	if err != nil {
-		t.Fatalf("NewOid(%q): %v", headSHA1, err)
+		t.Fatalf("parseID(%s): %v", headSHA1, err)
 	}
 
 	tree, err := fix.cache.Tree.Get(headID)

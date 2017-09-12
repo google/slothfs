@@ -15,14 +15,20 @@
 package cache
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/google/slothfs/gitiles"
-	git "github.com/libgit2/git2go"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
+
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 // A TreeCache caches recursively expanded trees by their git commit and tree IDs.
@@ -38,13 +44,13 @@ func NewTreeCache(d string) (*TreeCache, error) {
 	return &TreeCache{dir: d}, nil
 }
 
-func (c *TreeCache) path(id *git.Oid) string {
+func (c *TreeCache) path(id *plumbing.Hash) string {
 	str := id.String()
 	return fmt.Sprintf("%s/%s/%s", c.dir, str[:3], str[3:])
 }
 
 // Get returns a tree, if available.
-func (c *TreeCache) Get(id *git.Oid) (*gitiles.Tree, error) {
+func (c *TreeCache) Get(id *plumbing.Hash) (*gitiles.Tree, error) {
 	content, err := ioutil.ReadFile(c.path(id))
 	if err != nil {
 		return nil, err
@@ -57,14 +63,26 @@ func (c *TreeCache) Get(id *git.Oid) (*gitiles.Tree, error) {
 	return &t, nil
 }
 
+func parseID(s string) (*plumbing.Hash, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil || len(b) != 20 {
+		return nil, fmt.Errorf("NewOid(%q): %v", s, err)
+	}
+
+	var h plumbing.Hash
+	copy(h[:], b)
+	return &h, nil
+}
+
 // Add adds a Tree to the cache
-func (c *TreeCache) Add(id *git.Oid, tree *gitiles.Tree) error {
+func (c *TreeCache) Add(id *plumbing.Hash, tree *gitiles.Tree) error {
 	if err := c.add(id, tree); err != nil {
 		return err
 	}
 
 	if id.String() != tree.ID {
-		treeID, err := git.NewOid(tree.ID)
+		// Ugh: error handling?
+		treeID, err := parseID(tree.ID)
 		if err != nil {
 			return err
 		}
@@ -73,7 +91,7 @@ func (c *TreeCache) Add(id *git.Oid, tree *gitiles.Tree) error {
 	return nil
 }
 
-func (c *TreeCache) add(id *git.Oid, tree *gitiles.Tree) error {
+func (c *TreeCache) add(id *plumbing.Hash, tree *gitiles.Tree) error {
 	f, err := ioutil.TempFile(c.dir, "tmp")
 	if err != nil {
 		return err
@@ -103,88 +121,77 @@ func (c *TreeCache) add(id *git.Oid, tree *gitiles.Tree) error {
 }
 
 // GetTree loads the Tree from an on-disk Git repository.
-func GetTree(repo *git.Repository, id *git.Oid) (*gitiles.Tree, error) {
-	obj, err := repo.Lookup(id)
-	if err != nil {
-		return nil, err
+func GetTree(repo *git.Repository, id *plumbing.Hash) (*gitiles.Tree, error) {
+	treeObj, err := repo.TreeObject(*id)
+	if treeObj == nil {
+		commit, e2 := repo.CommitObject(*id)
+		if e2 != nil {
+			return nil, e2
+		}
+		treeObj, err = repo.TreeObject(commit.TreeHash)
 	}
-	defer obj.Free()
-
-	peeledObj, err := obj.Peel(git.ObjectTree)
-	if err != nil {
-		return nil, err
-	}
-	if peeledObj != obj {
-		defer peeledObj.Free()
-	}
-
-	asTree, err := peeledObj.AsTree()
 	if err != nil {
 		return nil, err
 	}
 
 	var tree gitiles.Tree
-	tree.ID = obj.Id().String()
 
-	odb, err := repo.Odb()
-	if err != nil {
-		return nil, err
-	}
-	defer odb.Free()
+	tree.ID = id.String()
+	walker := object.NewTreeWalker(treeObj, true, map[plumbing.Hash]bool{})
+	defer walker.Close()
+loop:
+	for {
+		name, entry, err := walker.Next()
+		if err == io.EOF {
+			break
+		}
 
-	cb := func(n string, e *git.TreeEntry) int {
-		t := ""
+		if err != nil {
+			return nil, err
+		}
+
 		var size *int
-		switch e.Type {
-		case git.ObjectTree:
-			return 0
-		case git.ObjectCommit:
+		var t string
+		var blob *object.Blob
+		switch entry.Mode {
+		case filemode.Dir:
+			continue loop
+		case filemode.Submodule:
 			t = "commit"
-		case git.ObjectBlob:
+		case filemode.Symlink, filemode.Regular, filemode.Executable:
 			t = "blob"
-			sz, _, rhErr := odb.ReadHeader(e.Id)
-			if rhErr != nil {
-				err = rhErr
-				return -1
+			blob, err = repo.BlobObject(entry.Hash)
+			if err != nil {
+				return nil, err
 			}
 			size = new(int)
-			*size = int(sz)
-
+			*size = int(blob.Size)
 		default:
-			err = fmt.Errorf("illegal object %d for %s", e.Type, n)
+			err = fmt.Errorf("illegal mode %d for %s", entry.Mode, name)
 		}
 
 		gEntry := gitiles.TreeEntry{
-			Name: filepath.Join(n, e.Name),
-			ID:   e.Id.String(),
-			Mode: int(e.Filemode),
+			Name: name,
+			ID:   entry.Hash.String(),
+			Mode: int(entry.Mode),
 			Size: size,
 			Type: t,
 		}
-		if e.Filemode == git.FilemodeLink {
-			obj, lookErr := repo.Lookup(e.Id)
+		if entry.Mode == filemode.Symlink {
+			r, err := blob.Reader()
 			if err != nil {
-				err = lookErr
-				return -1
+				return nil, err
 			}
-			defer obj.Free()
-
-			blob, blobErr := obj.AsBlob()
-			if blobErr != nil {
-				err = blobErr
-				return -1
+			c, err := ioutil.ReadAll(r)
+			r.Close()
+			if err != nil {
+				return nil, err
 			}
-
-			target := string(blob.Contents())
+			target := string(c)
 			gEntry.Target = &target
 		}
 
 		tree.Entries = append(tree.Entries, gEntry)
-		return 0
-	}
-
-	if err := asTree.Walk(cb); err != nil {
-		return nil, err
 	}
 
 	return &tree, nil

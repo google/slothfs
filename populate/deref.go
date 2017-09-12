@@ -15,13 +15,37 @@
 package populate
 
 import (
+	"encoding/hex"
 	"fmt"
+	"log"
+
+	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
-
-	git "github.com/libgit2/git2go"
 )
+
+func parseID(s string) (*plumbing.Hash, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("parseID(%q): %v", s, err)
+	}
+	if len(b) != 20 {
+		return nil, fmt.Errorf("hash must be 20 hex bytes")
+	}
+
+	var h plumbing.Hash
+	copy(h[:], b)
+	return &h, nil
+}
+
+func gitID(s string) *plumbing.Hash {
+	h, err := parseID(s)
+	if err != nil {
+		log.Panic(err)
+	}
+	return h
+}
 
 // FetchManifest gets the default manifest file from a Gitiles server.
 func FetchManifest(service *gitiles.Service, repo, branch string) (*manifest.Manifest, error) {
@@ -56,7 +80,7 @@ func DerefManifest(service *gitiles.Service, mf *manifest.Manifest) error {
 		// According to the repo doc, the revision should be a branch,
 		// either like 'refs/heads/master' or 'master'. We abuse this field by
 		// also allowing commit SHA1s.
-		if _, err := git.NewOid(rev); err == nil {
+		if _, err := parseID(rev); err == nil {
 			// Already a SHA1, don't change.
 			continue
 		}

@@ -24,14 +24,14 @@ import (
 	"reflect"
 	"testing"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
+
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
 	"github.com/google/slothfs/manifest"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
-
-	git "github.com/libgit2/git2go"
 )
 
 // a bunch of random sha1s.
@@ -42,12 +42,12 @@ var ids = []string{
 	"7ba00d0407ed4467c874ab45bb47fcb82fe63fac",
 }
 
-func gitID(s string) *git.Oid {
-	i, err := git.NewOid(s)
+func getID(s string) *plumbing.Hash {
+	h, err := parseID(s)
 	if err != nil {
-		log.Panicf("NewOid(%q): %v", i, err)
+		log.Panic(err)
 	}
-	return i
+	return h
 }
 
 func newInt(i int) *int {

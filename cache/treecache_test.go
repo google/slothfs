@@ -21,7 +21,10 @@ import (
 	"testing"
 
 	"github.com/google/slothfs/gitiles"
-	git "github.com/libgit2/git2go"
+	git "gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 func newInt(i int) *int          { return &i }
@@ -95,16 +98,12 @@ func TestTreeCache(t *testing.T) {
 		t.Fatalf("getTree: %v", err)
 	}
 
-	randomID, err := git.NewOid("abcd1234abcd1234abcd1234abcd1234abcd1234")
-	if err != nil {
-		t.Fatalf("NewOid: %v", err)
-	}
-
-	if err := cache.Add(randomID, treeResp); err != nil {
+	randomID := plumbing.NewHash("abcd1234abcd1234abcd1234abcd1234abcd1234")
+	if err := cache.Add(&randomID, treeResp); err != nil {
 		t.Fatalf("cache.add %v", err)
 	}
 
-	roundtrip, err := cache.Get(randomID)
+	roundtrip, err := cache.Get(&randomID)
 	if err != nil {
 		t.Fatalf("cache.get: %v", err)
 	}
@@ -123,13 +122,45 @@ func TestTreeCache(t *testing.T) {
 
 type testRepo struct {
 	dir       string
-	subTreeID *git.Oid
-	treeID    *git.Oid
+	subTreeID *plumbing.Hash
+	treeID    *plumbing.Hash
 	repo      *git.Repository
 }
 
 func (r *testRepo) Cleanup() {
 	os.RemoveAll(r.dir)
+}
+
+func writeBlob(repo *git.Repository, content []byte) (*plumbing.Hash, error) {
+	obj := repo.Storer.NewEncodedObject()
+	obj.SetType(plumbing.BlobObject)
+
+	w, err := obj.Writer()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := w.Write(content); err != nil {
+		return nil, err
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	h, err := repo.Storer.SetEncodedObject(obj)
+	return &h, err
+}
+
+func writeTree(repo *git.Repository, entries []object.TreeEntry) (*plumbing.Hash, error) {
+	t := object.Tree{
+		Entries: entries,
+	}
+
+	obj := repo.Storer.NewEncodedObject()
+	t.Encode(obj)
+
+	h, err := repo.Storer.SetEncodedObject(obj)
+	return &h, err
 }
 
 func initTest() (*testRepo, error) {
@@ -138,7 +169,7 @@ func initTest() (*testRepo, error) {
 		return nil, err
 	}
 
-	repo, err := git.InitRepository(d, true)
+	repo, err := git.PlainInit(d, true)
 	if err != nil {
 		return nil, err
 	}
@@ -146,47 +177,27 @@ func initTest() (*testRepo, error) {
 	c1 := []byte("hello")
 	c2 := []byte("goedemiddag")
 
-	id1, err := repo.CreateBlobFromBuffer(c1)
+	id1, err := writeBlob(repo, c1)
 	if err != nil {
 		return nil, err
 	}
 
-	id2, err := repo.CreateBlobFromBuffer(c2)
+	id2, err := writeBlob(repo, c2)
 	if err != nil {
 		return nil, err
 	}
-	b, err := repo.TreeBuilder()
 
-	if err != nil {
-		return nil, err
-	}
-	defer b.Free()
+	subTreeID, err := writeTree(repo,
+		[]object.TreeEntry{
+			{Name: "f1", Hash: *id1, Mode: filemode.Regular},
+			{Name: "f2", Hash: *id2, Mode: filemode.Executable},
+		})
 
-	if err = b.Insert("f1", id1, git.FilemodeBlob); err != nil {
-		return nil, err
-	}
-
-	if err := b.Insert("f2", id2, git.FilemodeBlobExecutable); err != nil {
-		return nil, err
-	}
-	subTreeID, err := b.Write()
-
-	b, err = repo.TreeBuilder()
-	if err != nil {
-		return nil, err
-	}
-	defer b.Free()
-
-	if err = b.Insert("dir", subTreeID, git.FilemodeTree); err != nil {
-		return nil, err
-	}
-	if err = b.Insert("link", id1, git.FilemodeLink); err != nil {
-		return nil, err
-	}
-	treeID, err := b.Write()
-	if err != nil {
-		return nil, err
-	}
+	treeID, err := writeTree(repo,
+		[]object.TreeEntry{
+			{Name: "dir", Hash: *subTreeID, Mode: filemode.Dir},
+			{Name: "link", Hash: *id1, Mode: filemode.Symlink},
+		})
 
 	return &testRepo{
 		dir:       d,

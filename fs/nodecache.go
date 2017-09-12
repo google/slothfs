@@ -17,11 +17,11 @@ package fs
 import (
 	"sync"
 
-	git "github.com/libgit2/git2go"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 type nodeCacheKey struct {
-	ID   git.Oid
+	ID   plumbing.Hash
 	xbit bool
 }
 
@@ -44,7 +44,7 @@ func newNodeCache() *nodeCache {
 	}
 }
 
-func (c *nodeCache) get(id *git.Oid, xbit bool) *gitilesNode {
+func (c *nodeCache) get(id *plumbing.Hash, xbit bool) *gitilesNode {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

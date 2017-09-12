@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -26,11 +27,13 @@ import (
 	"syscall"
 	"time"
 
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
+
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
-	git "github.com/libgit2/git2go"
 )
 
 // gitilesRoot is the root for a FUSE filesystem backed by a Gitiles
@@ -48,12 +51,12 @@ type gitilesRoot struct {
 	handleLessIO bool
 
 	// OID => path
-	shaMap map[git.Oid]string
+	shaMap map[plumbing.Hash]string
 
 	lazyRepo *cache.LazyRepo
 
 	fetchingCond *sync.Cond
-	fetching     map[git.Oid]bool
+	fetching     map[plumbing.Hash]bool
 }
 
 type linkNode struct {
@@ -93,7 +96,7 @@ type gitilesNode struct {
 	// Data from Git metadata.
 	mode       uint32
 	size       int64
-	id         git.Oid
+	id         plumbing.Hash
 	linkTarget []byte
 
 	// if set, clone the repo on reading this file.
@@ -196,7 +199,7 @@ func (n *gitilesNode) handleLessRead(file nodefs.File, dest []byte, off int64, c
 
 // openFile returns a file handle for the given blob. If `clone` is
 // given, we may try a clone of the git repository
-func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
+func (r *gitilesRoot) openFile(id plumbing.Hash, clone bool) (*os.File, error) {
 	f, ok := r.cache.Blob.Open(id)
 	if ok {
 		return f, nil
@@ -211,7 +214,7 @@ func (r *gitilesRoot) openFile(id git.Oid, clone bool) (*os.File, error) {
 	return f, nil
 }
 
-func (r *gitilesRoot) fetchFile(id git.Oid, clone bool) (*os.File, error) {
+func (r *gitilesRoot) fetchFile(id plumbing.Hash, clone bool) (*os.File, error) {
 	r.fetchingCond.L.Lock()
 	defer r.fetchingCond.L.Unlock()
 
@@ -242,7 +245,17 @@ func (r *gitilesRoot) fetchFile(id git.Oid, clone bool) (*os.File, error) {
 	return nil, err
 }
 
-func (r *gitilesRoot) fetchFileExpensive(id git.Oid, clone bool) error {
+func readBlob(blob *object.Blob) ([]byte, error) {
+	r, err := blob.Reader()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	return ioutil.ReadAll(r)
+}
+
+func (r *gitilesRoot) fetchFileExpensive(id plumbing.Hash, clone bool) error {
 	repo := r.lazyRepo.Repository()
 	if clone && repo == nil {
 		r.lazyRepo.Clone()
@@ -250,10 +263,12 @@ func (r *gitilesRoot) fetchFileExpensive(id git.Oid, clone bool) error {
 
 	var content []byte
 	if repo != nil {
-		blob, err := repo.LookupBlob(&id)
+		blob, err := repo.BlobObject(id)
 		if err == nil {
-			content = blob.Contents()
-			blob.Free()
+			content, err = readBlob(blob)
+			if err != nil {
+				content = nil
+			}
 		}
 	}
 
@@ -309,12 +324,12 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 		service:      service,
 		nodeCache:    newNodeCache(),
 		cache:        c,
-		shaMap:       map[git.Oid]string{},
+		shaMap:       map[plumbing.Hash]string{},
 		tree:         tree,
 		opts:         options,
 		lazyRepo:     cache.NewLazyRepo(options.CloneURL, c),
 		fetchingCond: sync.NewCond(&sync.Mutex{}),
-		fetching:     map[git.Oid]bool{},
+		fetching:     map[plumbing.Hash]bool{},
 	}
 
 	return r
@@ -387,7 +402,7 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		dir, base := filepath.Split(p)
 
 		parent := r.pathTo(fsConn, dir)
-		id, err := git.NewOid(e.ID)
+		id, err := parseID(e.ID)
 		if err != nil {
 			return err
 		}

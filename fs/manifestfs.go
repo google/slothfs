@@ -26,7 +26,6 @@ import (
 	"github.com/google/slothfs/manifest"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
-	git "github.com/libgit2/git2go"
 )
 
 type manifestFSRoot struct {
@@ -68,7 +67,7 @@ func NewManifestFS(service *gitiles.Service, cache *cache.Cache, opts ManifestOp
 	}
 
 	for _, p := range opts.Manifest.Project {
-		if _, err := git.NewOid(p.Revision); err != nil {
+		if _, err := parseID(p.Revision); err != nil {
 			return nil, fmt.Errorf("project %s revision %q does not parse: %v", p.Name, p.Revision, err)
 		}
 	}
@@ -226,7 +225,7 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 	out := make(chan resultT, len(mf.Project))
 	for _, p := range mf.Project {
 		go func(p manifest.Project) {
-			revID, err := git.NewOid(p.Revision)
+			revID, err := parseID(p.Revision)
 			if err != nil {
 				out <- resultT{p.GetPath(), nil, err}
 				return
@@ -236,7 +235,6 @@ func fetchTreeMap(c *cache.Cache, service *gitiles.Service, mf *manifest.Manifes
 			cached := (err == nil && tree != nil)
 			if err != nil {
 				if repo := c.Git.OpenLocal(p.CloneURL); repo != nil {
-					defer repo.Free()
 					tree, err = cache.GetTree(repo, revID)
 				}
 			}

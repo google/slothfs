@@ -15,13 +15,16 @@
 package fs
 
 import (
+	"encoding/hex"
+	"fmt"
 	"log"
+
+	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
-	"github.com/libgit2/git2go"
 )
 
 type gitilesConfigFSRoot struct {
@@ -37,8 +40,19 @@ func (r *gitilesConfigFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
 	r.fsConn = fsConn
 }
 
+func parseID(s string) (*plumbing.Hash, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil || len(b) != 20 {
+		return nil, fmt.Errorf("NewOid(%q): %v", s, err)
+	}
+
+	var h plumbing.Hash
+	copy(h[:], b)
+	return &h, nil
+}
+
 func (r *gitilesConfigFSRoot) Lookup(out *fuse.Attr, name string, context *fuse.Context) (*nodefs.Inode, fuse.Status) {
-	id, err := git.NewOid(name)
+	id, err := parseID(name)
 	if err != nil {
 		return nil, fuse.ENOENT
 	}

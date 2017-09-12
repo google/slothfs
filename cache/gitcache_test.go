@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	git "github.com/libgit2/git2go"
+	git "gopkg.in/src-d/go-git.v4"
 )
 
 func TestGitCache(t *testing.T) {
@@ -103,7 +103,7 @@ func TestThreadSafety(t *testing.T) {
 	done := make(chan res, 10)
 	for i := 0; i < cap(done); i++ {
 		go func() {
-			repo, err := git.OpenRepository(dir + "/.git")
+			repo, err := git.PlainOpen(dir)
 			done <- res{err, repo}
 		}()
 	}
@@ -111,8 +111,7 @@ func TestThreadSafety(t *testing.T) {
 	for i := 0; i < cap(done); i++ {
 		r := <-done
 		if r.err != nil {
-			t.Errorf("OpenRepository: %v", err)
+			t.Errorf("OpenRepository: %v", r.err)
 		}
-		defer r.repo.Free()
 	}
 }
