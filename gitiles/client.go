@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -124,7 +125,7 @@ func NewService(opts Options) (*Service, error) {
 	return s, nil
 }
 
-func (s *Service) get(u *url.URL) ([]byte, error) {
+func (s *Service) stream(u *url.URL) (*http.Response, error) {
 	ctx := context.Background()
 
 	if err := s.limiter.Wait(ctx); err != nil {
@@ -140,8 +141,9 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
 		return nil, fmt.Errorf("%s: %s", u.String(), resp.Status)
 	}
 
@@ -149,11 +151,23 @@ func (s *Service) get(u *url.URL) ([]byte, error) {
 		log.Printf("%s %s: %d", req.Method, req.URL, resp.StatusCode)
 	}
 	if got := resp.Request.URL.String(); got != u.String() {
+		resp.Body.Close()
 		// We accept redirects, but only for authentication.
 		// If we get a 200 from a different page than we
 		// requested, it's probably some sort of login page.
 		return nil, fmt.Errorf("got URL %s, want %s", got, u.String())
 	}
+
+	return resp, nil
+}
+
+func (s *Service) get(u *url.URL) ([]byte, error) {
+	resp, err := s.stream(u)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
 
 	c, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -243,6 +257,38 @@ func (s *RepoService) GetBlob(branch, filename string) ([]byte, error) {
 	// TODO(hanwen): invent a more structured mechanism for logging.
 	log.Println(blobURL.String())
 	return s.service.get(&blobURL)
+}
+
+// Archive formats for +archive. JGit also supports some shorthands.
+const (
+	ArchiveTbz = "tar.bz2"
+	ArchiveTgz = "tar.gz"
+	ArchiveTar = "tar"
+	ArchiveTxz = "tar.xz"
+
+	// the Gitiles source code claims .tar.xz and .tar are
+	// supported, but googlesource.com doesn't support it,
+	// apparently. In addition, JGit provides ZipFormat, but
+	// gitiles doesn't support it.
+)
+
+// GetArchive downloads an archive of the project. Format is one
+// ArchivXxx formats. dirPrefix, if given, restricts to the given
+// subpath, and strips the path prefix from the files in the resulting
+// tar archive. revision is a git revision, either a branch/tag name
+// ("master") or a hex commit SHA1.
+func (s *RepoService) GetArchive(revision, dirPrefix, format string) (io.ReadCloser, error) {
+	u := s.service.addr
+	u.Path = path.Join(u.Path, s.Name, "+archive", revision)
+	if dirPrefix != "" {
+		u.Path = path.Join(u.Path, dirPrefix)
+	}
+	u.Path += "." + format
+	resp, err := s.service.stream(&u)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, err
 }
 
 // GetTree fetches a tree. The dir argument may not point to a
