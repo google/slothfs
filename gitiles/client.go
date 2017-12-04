@@ -15,6 +15,10 @@
 // Package gitiles is a client library for the Gitiles source viewer.
 package gitiles
 
+// The gitiles command set is defined here:
+//
+// https://gerrit.googlesource.com/gitiles/+/7c07a4a68ece6009909206482e0728dbbf0be77d/java/com/google/gitiles/ViewFilter.java#47
+
 import (
 	"bytes"
 	"encoding/base64"
@@ -320,4 +324,44 @@ func (s *RepoService) GetCommit(branch string) (*Commit, error) {
 	var c Commit
 	err := s.service.getJSON(&jsonURL, &c)
 	return &c, err
+}
+
+// Options for Describe.
+const (
+	// Return a ref that contains said commmit
+	DescribeContains = "contains"
+
+	// Return any type of ref
+	DescribeAll = "all"
+
+	// Only return a tag ref
+	DescribeTags = "tags"
+
+	// The default for 'contains': return annotated tags
+	DescribeAnnotatedTags = ""
+)
+
+// Describe describes a possibly shortened commit hash as a ref that
+// is visible to the caller. Currently, only the 'contains' flavor is
+// implemented, so options must always include 'contains'.
+func (s *RepoService) Describe(revision string, options ...string) (string, error) {
+	jsonURL := s.service.addr
+	jsonURL.Path = path.Join(jsonURL.Path, s.Name, "+describe", revision)
+	jsonURL.RawQuery = "format=JSON&" + strings.Join(options, "&")
+
+	result := map[string]string{}
+	err := s.service.getJSON(&jsonURL, &result)
+	if err != nil {
+		return "", err
+	}
+
+	if len(result) != 1 {
+		return "", fmt.Errorf("gitiles: got map %v, want just one entry", result)
+	}
+
+	for _, v := range result {
+		return v, nil
+	}
+
+	panic("unreachable.")
 }

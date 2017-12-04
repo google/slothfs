@@ -59,3 +59,25 @@ func TestProductionArchive(t *testing.T) {
 		t.Fatal("did not find 'mux.go', got %v", names)
 	}
 }
+
+func TestProductionDescribe(t *testing.T) {
+	gs, err := NewService(Options{
+		Address: "https://gerrit.googlesource.com",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := gs.NewRepoService("gitiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.Describe("9de65953ec", DescribeContains)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := "v0.1-6~361"; want != got {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
