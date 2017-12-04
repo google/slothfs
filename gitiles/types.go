@@ -117,3 +117,15 @@ func (t *Tree) String() string {
 	return buf.String()
 
 }
+
+// A git reference
+type RefData struct {
+	// The value to which a reference points.
+	Value string
+
+	// If the value points to a tag, the commit that the tag points to.
+	Peeled string
+
+	// If the ref is symbolic, eg. HEAD, the ref to which it points.
+	Target string
+}

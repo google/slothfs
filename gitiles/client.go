@@ -365,3 +365,22 @@ func (s *RepoService) Describe(revision string, options ...string) (string, erro
 
 	panic("unreachable.")
 }
+
+// Refs returns the refs of a repository, optionally filtered by prefix.
+func (s *RepoService) Refs(prefix string) (map[string]*RefData, error) {
+
+	jsonURL := s.service.addr
+	jsonURL.Path = path.Join(jsonURL.Path, s.Name, "+refs")
+	if prefix != "" {
+		jsonURL.Path = path.Join(jsonURL.Path, prefix)
+	}
+	jsonURL.RawQuery = "format=JSON"
+
+	result := map[string]*RefData{}
+	err := s.service.getJSON(&jsonURL, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, err
+}

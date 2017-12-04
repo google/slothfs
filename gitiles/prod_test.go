@@ -81,3 +81,25 @@ func TestProductionDescribe(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
+
+func TestProductionRefs(t *testing.T) {
+	gs, err := NewService(Options{
+		Address: "https://gerrit.googlesource.com",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := gs.NewRepoService("gitiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.Refs("refs/heads")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got["master"] == nil {
+		t.Errorf("got %v, want key 'master'", got)
+	}
+}
