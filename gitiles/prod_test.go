@@ -56,7 +56,7 @@ func TestProductionArchive(t *testing.T) {
 	}
 
 	if !names["mux.go"] {
-		t.Fatal("did not find 'mux.go', got %v", names)
+		t.Fatalf("did not find 'mux.go', got %v", names)
 	}
 }
 
