@@ -44,7 +44,6 @@ type Service struct {
 	addr    url.URL
 	client  http.Client
 	agent   string
-	jar     http.CookieJar
 	debug   bool
 }
 
