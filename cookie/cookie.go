@@ -63,15 +63,15 @@ func ParseCookieJar(r io.Reader) ([]*http.Cookie, error) {
 		}
 
 		c := http.Cookie{
-			Domain:   fields[0],
-			Name:     fields[5],
-			Path:     fields[2],
+			Domain:   strings.TrimSpace(fields[0]),
+			Name:     strings.TrimSpace(fields[5]),
+			Path:     strings.TrimSpace(fields[2]),
 			Expires:  time.Unix(exp, 0),
 			Secure:   fields[3] == "TRUE",
 			HttpOnly: httpOnly,
 		}
 		if len(fields) == 7 {
-			c.Value = fields[6]
+			c.Value = strings.TrimSpace(fields[6])
 		}
 
 		result = append(result, &c)

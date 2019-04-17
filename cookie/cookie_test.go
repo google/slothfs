@@ -17,16 +17,17 @@ package cookie
 import (
 	"bytes"
 	"net/http"
-	"reflect"
 	"testing"
 	"time"
+
+	"github.com/kylelemons/godebug/pretty"
 )
 
 func TestParseCookieJar(t *testing.T) {
 	in := `# Netscape HTTP Cookie File
 # http://www.netscape.com/newsref/std/cookie_spec.html
 # This is a generated file!  Do not edit.
-#HttpOnly_login.netscape.com	FALSE	/	FALSE	1467968199	XYZ     
+#HttpOnly_login.netscape.com	FALSE	/	FALSE	1467968199	XYZ
 #HttpOnly_login.netscape.com	FALSE	/	FALSE	1467968199	XYZ	abc|pqr`
 
 	buf := bytes.NewBufferString(in)
@@ -55,7 +56,32 @@ func TestParseCookieJar(t *testing.T) {
 		},
 	}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %#v, want %#v", got, want)
+	if diff := pretty.Compare(want, got); diff != "" {
+		t.Errorf("got diff %s", diff)
+	}
+}
+
+func TestSpaceDomain(t *testing.T) {
+	in := "hostname.domain.com \tFALSE\t / \tTRUE\t2147483647\t o \t secret "
+	buf := bytes.NewBufferString(in)
+	got, err := ParseCookieJar(buf)
+	if err != nil {
+		t.Fatalf("ParseCookieJar: %v", err)
+	}
+
+	want := []*http.Cookie{
+		{
+			Domain:   "hostname.domain.com",
+			Path:     "/",
+			Secure:   true,
+			Expires:  time.Unix(2147483647, 0),
+			Name:     "o",
+			Value:    "secret",
+			HttpOnly: false,
+		},
+	}
+
+	if diff := pretty.Compare(want, got); diff != "" {
+		t.Errorf("got diff %s", diff)
 	}
 }
