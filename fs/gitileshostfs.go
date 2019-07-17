@@ -15,18 +15,20 @@
 package fs
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
-	"github.com/hanwen/go-fuse/fuse/nodefs"
+	"github.com/hanwen/go-fuse/fs"
 )
 
 type hostFS struct {
-	nodefs.Node
+	fs.Inode
 
 	cache        *cache.Cache
 	service      *gitiles.Service
@@ -60,7 +62,6 @@ func NewHostFS(cache *cache.Cache, service *gitiles.Service, cloneOptions []Clon
 	}
 
 	return &hostFS{
-		Node:         nodefs.NewDefaultNode(),
 		projects:     projMap,
 		cloneOptions: cloneOptions,
 		service:      service,
@@ -68,34 +69,38 @@ func NewHostFS(cache *cache.Cache, service *gitiles.Service, cloneOptions []Clon
 	}, nil
 }
 
-func (h *hostFS) OnMount(fsConn *nodefs.FileSystemConnector) {
+var _ = (fs.NodeOnAdder)((*hostFS)(nil))
+
+func (h *hostFS) OnAdd(ctx context.Context) {
 	var keys []string
 	for k := range parents(h.projects) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	nodes := map[string]*nodefs.Inode{
-		"": h.Inode(),
+	nodes := map[string]*fs.Inode{
+		"": h.EmbeddedInode(),
 	}
 
 	for _, k := range keys {
 		if k == "." {
 			continue
 		}
+		// XXX should loop ?
 		d, nm := filepath.Split(k)
 		d = strings.TrimSuffix(d, "/")
 		parent := nodes[d]
 
-		var node nodefs.Node
+		var node fs.InodeEmbedder
 		if p := h.projects[k]; p != nil {
 			node = h.newProjectNode(parent, p)
 			delete(h.projects, k)
-			node.OnMount(fsConn)
 		} else {
-			node = newDirNode()
+			node = &fs.Inode{}
 		}
-		ch := parent.NewChild(nm, true, node)
+
+		ch := parent.NewPersistentInode(ctx, node, fs.StableAttr{Mode: syscall.S_IFDIR})
+		parent.AddChild(nm, ch, true)
 		nodes[k] = ch
 	}
 
@@ -105,13 +110,13 @@ func (h *hostFS) OnMount(fsConn *nodefs.FileSystemConnector) {
 
 		parent := nodes[d]
 		node := h.newProjectNode(parent, p)
-		node.OnMount(fsConn)
 
-		parent.NewChild(nm, true, node)
+		ch := parent.NewPersistentInode(ctx, node, fs.StableAttr{Mode: syscall.S_IFDIR})
+		parent.AddChild(nm, ch, true)
 	}
 }
 
-func (h *hostFS) newProjectNode(parent *nodefs.Inode, proj *gitiles.Project) nodefs.Node {
+func (h *hostFS) newProjectNode(parent *fs.Inode, proj *gitiles.Project) fs.InodeEmbedder {
 	repoService := h.service.NewRepoService(proj.Name)
 	opts := GitilesOptions{
 		CloneURL:    proj.CloneURL,

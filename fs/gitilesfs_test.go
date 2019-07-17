@@ -296,12 +296,12 @@ func TestGitilesFSSharedNodes(t *testing.T) {
 		t.Fatal("mount", err)
 	}
 
-	ch1 := fs.Inode().GetChild("AUTHORS")
+	ch1 := fs.GetChild("AUTHORS")
 	if ch1 == nil {
 		t.Fatalf("node for AUTHORS not found")
 	}
 
-	ch2 := fs.Inode().GetChild("AUTHORS2")
+	ch2 := fs.GetChild("AUTHORS2")
 	if ch2 == nil {
 		t.Fatalf("node for AUTHORS2 not found")
 	}
@@ -309,7 +309,7 @@ func TestGitilesFSSharedNodes(t *testing.T) {
 	if ch1 != ch2 {
 		t.Error("equal blobs did not share inodes.")
 	}
-	ch3 := fs.Inode().GetChild("AUTHORSx")
+	ch3 := fs.GetChild("AUTHORSx")
 	if ch1 == ch3 {
 		t.Error("blob with different modes shared inode.")
 	}
@@ -430,7 +430,7 @@ func TestGitilesFSBasic(t *testing.T) {
 	}
 
 	// TODO(hanwen): is this race-detector sane?
-	ch := fs.Inode().GetChild("testcase")
+	ch := fs.GetChild("testcase")
 	if ch == nil {
 		t.Fatalf("node for testcase/ not found")
 	}
@@ -439,9 +439,9 @@ func TestGitilesFSBasic(t *testing.T) {
 		t.Fatalf("node for addprefix.mk not found")
 	}
 
-	giNode, ok := ch.Node().(*gitilesNode)
+	giNode, ok := ch.Operations().(*gitilesNode)
 	if !ok {
-		t.Fatalf("got node type %T, want *gitilesNode", ch.Node())
+		t.Fatalf("got node type %T, want *gitilesNode", ch.Operations())
 	}
 
 	if giNode.clone {
@@ -477,14 +477,14 @@ func TestGitilesFSCachedRead(t *testing.T) {
 		}
 	}
 
-	ch := fs.Inode().GetChild("AUTHORS")
+	ch := fs.GetChild("AUTHORS")
 	if ch == nil {
 		t.Fatalf("node for AUTHORS not found")
 	}
 
-	giNode, ok := ch.Node().(*gitilesNode)
+	giNode, ok := ch.Operations().(*gitilesNode)
 	if !ok {
-		t.Fatalf("got node type %T, want *gitilesNode", ch.Node())
+		t.Fatalf("got node type %T, want *gitilesNode", ch.Operations())
 	}
 
 	if c := atomic.LoadUint32(&giNode.readCount); c != 1 {

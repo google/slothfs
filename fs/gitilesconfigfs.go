@@ -15,29 +15,26 @@
 package fs
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"log"
+	"syscall"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
+	"github.com/hanwen/go-fuse/fs"
 	"github.com/hanwen/go-fuse/fuse"
-	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
 type gitilesConfigFSRoot struct {
-	nodefs.Node
+	fs.Inode
 
-	fsConn  *nodefs.FileSystemConnector
 	cache   *cache.Cache
 	service *gitiles.RepoService
 	options GitilesOptions
-}
-
-func (r *gitilesConfigFSRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
-	r.fsConn = fsConn
 }
 
 func parseID(s string) (*plumbing.Hash, error) {
@@ -51,14 +48,16 @@ func parseID(s string) (*plumbing.Hash, error) {
 	return &h, nil
 }
 
-func (r *gitilesConfigFSRoot) Lookup(out *fuse.Attr, name string, context *fuse.Context) (*nodefs.Inode, fuse.Status) {
+var _ = (fs.NodeLookuper)((*gitilesConfigFSRoot)(nil))
+
+func (r *gitilesConfigFSRoot) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	id, err := parseID(name)
 	if err != nil {
-		return nil, fuse.ENOENT
+		return nil, syscall.ENOENT
 	}
 
-	if ch := r.Inode().GetChild(name); ch != nil {
-		return ch, fuse.OK
+	if ch := r.GetChild(name); ch != nil {
+		return ch, 0
 	}
 
 	tree, err := r.cache.Tree.Get(id)
@@ -66,7 +65,7 @@ func (r *gitilesConfigFSRoot) Lookup(out *fuse.Attr, name string, context *fuse.
 		tree, err = r.service.GetTree(id.String(), "/", true)
 		if err != nil {
 			log.Printf("GetTree(%s): %v", id, err)
-			return nil, fuse.EIO
+			return nil, syscall.EIO
 		}
 
 		if err := r.cache.Tree.Add(id, tree); err != nil {
@@ -79,17 +78,18 @@ func (r *gitilesConfigFSRoot) Lookup(out *fuse.Attr, name string, context *fuse.
 		GitilesOptions: r.options,
 	}
 	newRoot := NewGitilesRoot(r.cache, tree, r.service, gro)
-	ch := r.Inode().NewChild(id.String(), true, newRoot)
-	out.Mode = fuse.S_IFDIR | 0755
+	ch := r.NewPersistentInode(
+		ctx,
+		newRoot,
+		fs.StableAttr{Mode: syscall.S_IFDIR})
 
-	newRoot.OnMount(r.fsConn)
-	return ch, fuse.OK
+	return ch, 0
 }
 
 // NewGitilesConfigFSRoot returns a root node for a filesystem that lazily
 // instantiates a repository if you access any subdirectory named by a
 // 40-byte hex SHA1.
-func NewGitilesConfigFSRoot(c *cache.Cache, service *gitiles.RepoService, options *GitilesOptions) nodefs.Node {
+func NewGitilesConfigFSRoot(c *cache.Cache, service *gitiles.RepoService, options *GitilesOptions) fs.InodeEmbedder {
 	// TODO(hanwen): nodefs.Node has an OnForget(), but it will
 	// never trigger for directories that have children. That
 	// means that we effectively never drop old trees. We can fix
@@ -97,7 +97,6 @@ func NewGitilesConfigFSRoot(c *cache.Cache, service *gitiles.RepoService, option
 	// a periodic removal of all subtrees trees. Since the FS is
 	// read-only that should cause no ill effects.
 	return &gitilesConfigFSRoot{
-		Node:    nodefs.NewDefaultNode(),
 		cache:   c,
 		service: service,
 		options: *options,

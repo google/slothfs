@@ -15,6 +15,7 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -32,14 +34,14 @@ import (
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
+	"github.com/hanwen/go-fuse/fs"
 	"github.com/hanwen/go-fuse/fuse"
-	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
 // gitilesRoot is the root for a FUSE filesystem backed by a Gitiles
 // service.
 type gitilesRoot struct {
-	nodefs.Node
+	fs.Inode
 
 	nodeCache *nodeCache
 
@@ -59,37 +61,9 @@ type gitilesRoot struct {
 	fetching     map[plumbing.Hash]bool
 }
 
-type linkNode struct {
-	nodefs.Node
-	linkTarget []byte
-}
-
-func (n *linkNode) Deletable() bool { return false }
-
-func newLinkNode(target string) *linkNode {
-	return &linkNode{
-		Node:       nodefs.NewDefaultNode(),
-		linkTarget: []byte(target),
-	}
-}
-
-func (n *linkNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
-	out.Size = uint64(len(n.linkTarget))
-	out.Mode = fuse.S_IFLNK
-
-	t := time.Unix(1, 0)
-	out.SetTimes(nil, &t, nil)
-
-	return fuse.OK
-}
-
-func (n *linkNode) Readlink(c *fuse.Context) ([]byte, fuse.Status) {
-	return n.linkTarget, fuse.OK
-}
-
 // gitilesNode represents a read-only blob in the FUSE filesystem.
 type gitilesNode struct {
-	nodefs.Node
+	fs.Inode
 
 	root *gitilesRoot
 
@@ -110,24 +84,15 @@ type gitilesNode struct {
 	readCount uint32
 }
 
-func (n *gitilesNode) Deletable() bool {
-	return false
+var _ = (fs.NodeReadlinker)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
+	return n.linkTarget, 0
 }
 
-func (n *gitilesNode) Utimens(file nodefs.File, atime *time.Time, mtime *time.Time, context *fuse.Context) (code fuse.Status) {
-	if mtime != nil {
-		n.mtimeMu.Lock()
-		n.mtime = *mtime
-		n.mtimeMu.Unlock()
-	}
-	return fuse.OK
-}
+var _ = (fs.NodeGetattrer)((*gitilesNode)(nil))
 
-func (n *gitilesNode) Readlink(c *fuse.Context) ([]byte, fuse.Status) {
-	return n.linkTarget, fuse.OK
-}
-
-func (n *gitilesNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
+func (n *gitilesNode) Getattr(ctx context.Context, h fs.FileHandle, out *fuse.AttrOut) (code syscall.Errno) {
 	out.Size = uint64(n.size)
 	out.Mode = n.mode
 
@@ -136,57 +101,86 @@ func (n *gitilesNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Co
 	n.mtimeMu.Unlock()
 
 	out.SetTimes(nil, &t, nil)
-	return fuse.OK
+	return 0
+}
+
+var _ = (fs.NodeSetattrer)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Setattr(ctx context.Context, h fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) (code syscall.Errno) {
+	if 0 != in.Valid&(fuse.FATTR_MODE|
+		fuse.FATTR_UID|
+		fuse.FATTR_GID|
+		fuse.FATTR_SIZE|
+		fuse.FATTR_LOCKOWNER|
+		fuse.FATTR_CTIME) {
+		return syscall.ENOTSUP
+	}
+	if mt, ok := in.GetMTime(); ok {
+		n.mtimeMu.Lock()
+		n.mtime = mt
+		n.mtimeMu.Unlock()
+
+		return n.Getattr(ctx, h, out)
+	}
+	return 0
 }
 
 const xattrName = "user.gitsha1"
 
-func (n *gitilesNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
+var _ = (fs.NodeGetxattrer)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Getxattr(ctx context.Context, attribute string, dest []byte) (uint32, syscall.Errno) {
 	if attribute != xattrName {
-		return nil, fuse.ENODATA
+		return 0, syscall.ENODATA
 	}
-	return []byte(n.id.String()), fuse.OK
+	sz := copy(dest, n.id.String())
+	return uint32(sz), 0
 }
 
-func (n *gitilesNode) ListXAttr(context *fuse.Context) (attrs []string, code fuse.Status) {
-	return []string{xattrName}, fuse.OK
+var _ = (fs.NodeListxattrer)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Listxattr(ctx context.Context, dest []byte) (uint32, syscall.Errno) {
+	sz := copy(dest, xattrName)
+	dest[sz] = 0
+	return uint32(sz + 1), 0
 }
 
-func (n *gitilesNode) Open(flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
+var _ = (fs.NodeOpener)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Open(ctx context.Context, flags uint32) (h fs.FileHandle, fuseFlags uint32, code syscall.Errno) {
 	if n.root.handleLessIO {
 		// We say ENOSYS so FUSE on Linux uses handle-less I/O.
-		return nil, fuse.ENOSYS
+		return nil, 0, syscall.ENOSYS
 	}
 
 	f, err := n.root.openFile(n.id, n.clone)
 	if err != nil {
-		return nil, fuse.ToStatus(err)
+		return nil, 0, fs.ToErrno(err)
 	}
 
-	return &nodefs.WithFlags{
-		File:      nodefs.NewLoopbackFile(f),
-		FuseFlags: fuse.FOPEN_KEEP_CACHE,
-	}, fuse.OK
+	return fs.NewLoopbackFile(int(f.Fd())), fuse.FOPEN_KEEP_CACHE, 0
 }
 
-func (n *gitilesNode) Read(file nodefs.File, dest []byte, off int64, context *fuse.Context) (fuse.ReadResult, fuse.Status) {
+var _ = (fs.NodeReader)((*gitilesNode)(nil))
+
+func (n *gitilesNode) Read(ctx context.Context, file fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	if off == 0 {
 		atomic.AddUint32(&n.readCount, 1)
 	}
 
 	if n.root.handleLessIO {
-		return n.handleLessRead(file, dest, off, context)
+		return n.handleLessRead(file, dest, off)
 	}
 
-	return file.Read(dest, off)
+	return file.(fs.FileReader).Read(ctx, dest, off)
 }
 
-func (n *gitilesNode) handleLessRead(file nodefs.File, dest []byte, off int64, context *fuse.Context) (fuse.ReadResult, fuse.Status) {
+func (n *gitilesNode) handleLessRead(file fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	// TODO(hanwen): for large files this is not efficient. Should
 	// have a cache of open file handles.
 	f, err := n.root.openFile(n.id, n.clone)
 	if err != nil {
-		return nil, fuse.ToStatus(err)
+		return nil, fs.ToErrno(err)
 	}
 
 	m, err := f.ReadAt(dest, off)
@@ -194,7 +188,7 @@ func (n *gitilesNode) handleLessRead(file nodefs.File, dest []byte, off int64, c
 		err = nil
 	}
 	f.Close()
-	return fuse.ReadResultData(dest[:m]), fuse.ToStatus(err)
+	return fuse.ReadResultData(dest[:m]), fs.ToErrno(err)
 }
 
 // openFile returns a file handle for the given blob. If `clone` is
@@ -290,37 +284,36 @@ func (r *gitilesRoot) fetchFileExpensive(id plumbing.Hash, clone bool) error {
 
 // dataNode makes arbitrary data available as a file.
 type dataNode struct {
-	nodefs.Node
+	fs.Inode
 	data []byte
 }
 
-func (n *dataNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
+var _ = (fs.NodeGetattrer)((*dataNode)(nil))
+
+func (n *dataNode) Getattr(ctx context.Context, file fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
 	out.Size = uint64(len(n.data))
 	out.Mode = fuse.S_IFREG | 0644
 	t := time.Unix(1, 0)
 	out.SetTimes(nil, &t, nil)
 
-	return fuse.OK
+	return 0
 }
 
-func (n *dataNode) Open(flags uint32, content *fuse.Context) (nodefs.File, fuse.Status) {
-	return nodefs.NewDataFile(n.data), fuse.OK
+var _ = (fs.NodeOpener)((*gitilesNode)(nil))
+
+func (n *dataNode) Open(ctx context.Context, flags uint32) (fs.FileHandle, syscall.Errno) {
+	return fs.MemRegularFile{Data: n.data}, 0
 }
 
-func (n *dataNode) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
-	return nil, fuse.ENODATA
-}
+var _ = (fs.NodeGetxattrer)((*gitilesNode)(nil))
 
-func (n *dataNode) Deletable() bool { return false }
-
-func newDataNode(c []byte) nodefs.Node {
-	return &dataNode{nodefs.NewDefaultNode(), c}
+func (n *dataNode) GetXAttr(ctx context.Context, attribute string) (data []byte, code syscall.Errno) {
+	return nil, syscall.ENODATA
 }
 
 // NewGitilesRoot returns the root node for a file system.
-func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesRevisionOptions) nodefs.Node {
+func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoService, options GitilesRevisionOptions) *gitilesRoot {
 	r := &gitilesRoot{
-		Node:         newDirNode(),
 		service:      service,
 		nodeCache:    newNodeCache(),
 		cache:        c,
@@ -335,63 +328,39 @@ func NewGitilesRoot(c *cache.Cache, tree *gitiles.Tree, service *gitiles.RepoSer
 	return r
 }
 
-func (r *gitilesRoot) Deletable() bool { return false }
+var _ = (fs.NodeGetxattrer)((*gitilesRoot)(nil))
 
-func (r *gitilesRoot) GetXAttr(attribute string, context *fuse.Context) (data []byte, code fuse.Status) {
-	return nil, fuse.ENODATA
+func (r *gitilesRoot) Getxattr(ctx context.Context, attribute string, data []byte) (sz uint32, code syscall.Errno) {
+	return 0, syscall.ENODATA
 }
 
-func (r *gitilesRoot) OnMount(fsConn *nodefs.FileSystemConnector) {
-	if err := r.onMount(fsConn); err != nil {
-		log.Printf("onMount: %v", err)
-		for k := range r.Inode().Children() {
-			r.Inode().RmChild(k)
+func (r *gitilesRoot) pathTo(dir string) *fs.Inode {
+	p := &r.Inode
+	for _, c := range strings.Split(dir, "/") {
+		if len(c) == 0 {
+			continue
 		}
-		r.Inode().NewChild("ERROR", false, newDataNode([]byte(err.Error())))
+		ch := p.GetChild(c)
+		if ch == nil {
+			ch = p.NewPersistentInode(context.Background(),
+				&fs.Inode{},
+				fs.StableAttr{Mode: syscall.S_IFDIR})
+			p.AddChild(c, ch, true)
+		}
+		p = ch
 	}
+	return p
 }
 
-type dirNode struct {
-	nodefs.Node
-}
+var _ = (fs.NodeOnAdder)((*gitilesRoot)(nil))
 
-// Implement Utimens so we don't create spurious "not implemented"
-// messages when directory targets for symlinks are touched.
-func (n *dirNode) Utimens(file nodefs.File, atime *time.Time, mtime *time.Time, context *fuse.Context) (code fuse.Status) {
-	return fuse.OK
-}
-
-func (n *dirNode) GetAttr(out *fuse.Attr, file nodefs.File, context *fuse.Context) (code fuse.Status) {
-	out.Mode = fuse.S_IFDIR | 0755
-	t := time.Unix(1, 0)
-	out.SetTimes(nil, &t, nil)
-	return fuse.OK
-}
-
-func (n *dirNode) Deletable() bool {
-	return false
-}
-
-func newDirNode() nodefs.Node {
-	return &dirNode{nodefs.NewDefaultNode()}
-}
-
-func (r *gitilesRoot) pathTo(fsConn *nodefs.FileSystemConnector, dir string) *nodefs.Inode {
-	parent, left := fsConn.Node(r.Inode(), dir)
-	for _, l := range left {
-		ch := parent.NewChild(l, true, newDirNode())
-		parent = ch
-	}
-	return parent
-}
-
-func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
+func (r *gitilesRoot) OnAdd(ctx context.Context) {
 	for _, e := range r.tree.Entries {
 		if e.Type == "commit" {
 			// TODO(hanwen): support submodules.  For now,
 			// we pretend we are plain git, which also
 			// leaves an empty directory in the place of a submodule.
-			r.pathTo(fsConn, e.Name)
+			r.pathTo(e.Name)
 			continue
 		}
 		if e.Type != "blob" {
@@ -401,10 +370,10 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		p := e.Name
 		dir, base := filepath.Split(p)
 
-		parent := r.pathTo(fsConn, dir)
+		parent := r.pathTo(dir)
 		id, err := parseID(e.ID)
 		if err != nil {
-			return err
+			return
 		}
 
 		// Determine if file should trigger a clone.
@@ -422,7 +391,6 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 		n := r.nodeCache.get(id, xbit)
 		if n == nil {
 			n = &gitilesNode{
-				Node:  nodefs.NewDefaultNode(),
 				id:    *id,
 				mode:  uint32(e.Mode),
 				clone: clone,
@@ -436,35 +404,45 @@ func (r *gitilesRoot) onMount(fsConn *nodefs.FileSystemConnector) error {
 				n.size = int64(*e.Size)
 			}
 
+			mode := uint32(syscall.S_IFREG)
 			if e.Target != nil {
 				n.linkTarget = []byte(*e.Target)
 				n.size = int64(len(n.linkTarget))
+				mode = syscall.S_IFLNK
 			}
 
 			r.shaMap[*id] = p
-			parent.NewChild(base, false, n)
+
+			ch := parent.NewPersistentInode(ctx, n, fs.StableAttr{Mode: mode})
+			parent.AddChild(base, ch, true)
 			r.nodeCache.add(n)
 		} else {
-			parent.AddChild(base, n.Inode())
+			parent.AddChild(base, n.EmbeddedInode(), true)
 		}
 
 	}
 
-	slothfsNode := r.Inode().NewChild(".slothfs", true, newDirNode())
-	slothfsNode.NewChild("treeID", false, newDataNode([]byte(r.tree.ID)))
+	slothfsNode := r.NewPersistentInode(ctx, &fs.Inode{}, fs.StableAttr{Mode: syscall.S_IFDIR})
+	r.AddChild(".slothfs", slothfsNode, true)
+	idFile := r.NewPersistentInode(ctx, &fs.MemRegularFile{
+		Data: []byte(r.tree.ID)}, fs.StableAttr{Mode: syscall.S_IFREG})
+
+	slothfsNode.AddChild("treeID", idFile, false)
 
 	treeContent, err := json.MarshalIndent(r.tree, "", " ")
 	if err != nil {
 		log.Panicf("json.Marshal: %v", err)
 	}
+	jsonFile := r.NewPersistentInode(ctx, &fs.MemRegularFile{
+		Data: treeContent}, fs.StableAttr{Mode: syscall.S_IFREG})
 
-	slothfsNode.NewChild("tree.json", false, newDataNode([]byte(treeContent)))
+	slothfsNode.AddChild("tree.json", jsonFile, false)
 
 	// We don't need the tree data anymore.
 	r.tree = nil
 
-	if fsConn.Server().KernelSettings().Flags&fuse.CAP_NO_OPEN_SUPPORT != 0 {
-		r.handleLessIO = true
-	}
-	return nil
+	// XXX
+	//	if fsConn.Server().KernelSettings().Flags&fuse.CAP_NO_OPEN_SUPPORT != 0 {
+	//		r.handleLessIO = true
+	//	}
 }

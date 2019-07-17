@@ -24,7 +24,7 @@ import (
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/fs"
 	"github.com/google/slothfs/gitiles"
-	"github.com/hanwen/go-fuse/fuse/nodefs"
+	fusefs "github.com/hanwen/go-fuse/fs"
 )
 
 func main() {
@@ -57,12 +57,14 @@ func main() {
 		log.Fatalf("NewService: %v", err)
 	}
 
-	server, _, err := nodefs.MountRoot(mntDir, root, &nodefs.Options{
-		EntryTimeout:    time.Hour,
-		NegativeTimeout: time.Hour,
-		AttrTimeout:     time.Hour,
-		Debug:           *debug,
-	})
+	h := time.Hour
+	fuseOpts := &fusefs.Options{
+		EntryTimeout:    &h,
+		NegativeTimeout: &h,
+		AttrTimeout:     &h,
+	}
+	fuseOpts.Debug = *debug
+	server, err := fusefs.Mount(mntDir, root, fuseOpts)
 	if err != nil {
 		log.Fatalf("MountFileSystem: %v", err)
 	}

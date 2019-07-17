@@ -1,4 +1,4 @@
-// Copyright 2016 Google Inc. All rights reserved.
+// Copyright 2019 Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ import (
 
 	"github.com/google/slothfs/cache"
 	"github.com/google/slothfs/gitiles"
+	"github.com/hanwen/go-fuse/fs"
 	"github.com/hanwen/go-fuse/fuse"
-	"github.com/hanwen/go-fuse/fuse/nodefs"
 )
 
 type testFixture struct {
@@ -34,7 +34,7 @@ type testFixture struct {
 	cache      *cache.Cache
 	testServer *testServer
 	service    *gitiles.Service
-	root       nodefs.Node
+	root       fs.InodeEmbedder
 }
 
 func (f *testFixture) cleanup() {
@@ -52,52 +52,45 @@ func newTestFixture() (*testFixture, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	fixture := &testFixture{dir: d}
-
 	fixture.cache, err = cache.NewCache(filepath.Join(d, "/cache"), cache.Options{})
 	if err != nil {
 		return nil, err
 	}
-
 	fixture.testServer, err = newTestServer()
 	if err != nil {
 		return nil, err
 	}
-
 	fixture.service, err = gitiles.NewService(gitiles.Options{
 		Address: fmt.Sprintf("http://%s", fixture.testServer.addr),
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	return fixture, nil
 }
 
-func (f *testFixture) mount(root nodefs.Node) error {
+func (f *testFixture) mount(root fs.InodeEmbedder) error {
 	f.mntDir = filepath.Join(f.dir, "mnt")
 	if err := os.Mkdir(f.mntDir, 0755); err != nil {
 		return err
 	}
-
-	fuseOpts := &nodefs.Options{
-		EntryTimeout:    time.Hour,
-		NegativeTimeout: time.Hour,
-		AttrTimeout:     time.Hour,
+	t := time.Hour
+	fuseOpts := &fs.Options{
+		EntryTimeout:    &t,
+		NegativeTimeout: &t,
+		AttrTimeout:     &t,
 	}
-
+	fuseOpts.Debug = true
 	var err error
-	f.server, _, err = nodefs.MountRoot(f.mntDir, root, fuseOpts)
+	f.server, err = fs.Mount(f.mntDir, root, fuseOpts)
 	if err != nil {
 		return err
 	}
-
 	if fuseDebug {
 		f.server.SetDebug(true)
 	}
 	go f.server.Serve()
-
 	f.root = root
 	return nil
 }
